@@ -1,0 +1,17 @@
+{
+  "name": "Tripp-Lite B020-016 16-Port KVM",
+  "category": "KVM",
+  "manufacturer": "Tripp Lite",
+  "modelNumber": "B020-016",
+  "tags": ["kvm", "1u", "tripp-lite", "rack", "16-port"],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.3,
+  "depthInches": 7.3,
+  "requiresSupport": false,
+  "kvmChannelCount": 16,
+  "maxPowerDrawWatts": 15,
+  "supportedProtocols": "USB, PS/2"
+}

@@ -1,0 +1,34 @@
+{
+  "name": "Netgate 4100",
+  "category": "FIREWALL",
+  "manufacturer": "Netgate",
+  "modelNumber": "4100",
+  "tags": [
+    "firewall",
+    "pfsense",
+    "1u",
+    "netgate",
+    "rack"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.0,
+  "depthInches": 9.0,
+  "requiresSupport": false,
+  "psuCount": 1,
+  "builtInEthernetCount": 4,
+  "maxPowerDrawWatts": 50,
+  "idlePowerWatts": 18,
+  "throughputGbps": 6.0,
+  "portGroups": [
+    {
+      "name": "Ethernet",
+      "portCount": 4,
+      "portType": "ETHERNET",
+      "side": "LEFT",
+      "sortOrder": 0
+    }
+  ]
+}

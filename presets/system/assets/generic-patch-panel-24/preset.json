@@ -1,0 +1,15 @@
+{
+  "name": "24-Port Cat6 Patch Panel",
+  "category": "PATCH_PANEL",
+  "patchPanelType": "KEYSTONE",
+  "tags": ["patch-panel", "1u", "cat6", "24-port", "passive"],
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.3,
+  "depthInches": 2.0,
+  "requiresSupport": false,
+  "portGroups": [
+    { "name": "Cat6", "portCount": 24, "portType": "ETHERNET", "portSpeed": "1G", "side": "LEFT", "sortOrder": 0 }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "name": "HPE ProLiant DL20 Gen9",
+  "category": "SERVER",
+  "manufacturer": "HPE",
+  "modelNumber": "DL20 Gen9",
+  "tags": [
+    "server",
+    "1u",
+    "hpe",
+    "proliant",
+    "gen9",
+    "lff",
+    "entry"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.5,
+  "depthInches": 15.0,
+  "requiresSupport": false,
+  "psuCount": 1,
+  "builtInEthernetCount": 2,
+  "maxPowerDrawWatts": 290,
+  "idlePowerWatts": 40,
+  "chassis": "ProLiant DL20 Gen9",
+  "bayZones": [
+    {
+      "name": "Front",
+      "faceSide": "FRONT",
+      "driveSize": "LFF",
+      "bayCount": 4,
+      "sortOrder": 0
+    }
+  ],
+  "portGroups": [
+    {
+      "name": "iLO",
+      "portCount": 1,
+      "portType": "IPMI",
+      "side": "LEFT",
+      "sortOrder": 0
+    },
+    {
+      "name": "Ethernet",
+      "portCount": 2,
+      "portType": "ETHERNET",
+      "side": "LEFT",
+      "sortOrder": 1
+    }
+  ],
+  "pciSlots": [
+    { "sortOrder": 0, "size": "x8" },
+    { "sortOrder": 1, "size": "x4" }
+  ]
+}

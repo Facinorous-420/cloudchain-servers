@@ -1,0 +1,23 @@
+{
+  "name": "UniFi U6 Pro",
+  "category": "ACCESS_POINT",
+  "manufacturer": "Ubiquiti",
+  "modelNumber": "U6-Pro",
+  "tags": ["access-point", "wifi6", "unifi", "ubiquiti", "ceiling-mount"],
+  "thumbnail": "images/front.png",
+  "formFactor": "NON_RACK",
+  "heightInches": 1.38,
+  "widthInches": 9.21,
+  "depthInches": 9.21,
+  "requiresSupport": true,
+  "maxPowerDrawWatts": 22,
+  "idlePowerWatts": 10,
+  "wifiStandard": "Wi-Fi 6 (802.11ax)",
+  "maxThroughputMbps": 5400,
+  "bandSupport": "2.4GHz + 5GHz",
+  "poeInputType": "802.3at (PoE+)",
+  "placement": "Ceiling",
+  "portGroups": [
+    { "name": "Ethernet", "portCount": 1, "portType": "ETHERNET", "side": "LEFT", "sortOrder": 0 }
+  ]
+}

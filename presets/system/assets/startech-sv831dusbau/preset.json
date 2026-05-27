@@ -1,0 +1,17 @@
+{
+  "name": "StarTech SV831DUSBAU 8-Port KVM",
+  "category": "KVM",
+  "manufacturer": "StarTech",
+  "modelNumber": "SV831DUSBAU",
+  "tags": ["kvm", "1u", "startech", "rack", "8-port", "dual-monitor"],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.3,
+  "depthInches": 6.5,
+  "requiresSupport": false,
+  "kvmChannelCount": 8,
+  "maxPowerDrawWatts": 12,
+  "supportedProtocols": "USB, VGA (dual display)"
+}

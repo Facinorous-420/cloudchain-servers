@@ -1,0 +1,67 @@
+{
+  "name": "Example Custom Server",
+  "category": "SERVER",
+  "manufacturer": "Acme",
+  "modelNumber": "AS-2024R",
+  "tags": ["server", "2u", "acme", "example"],
+  "thumbnail": "images/front.png",
+
+  "formFactor": "RACK",
+  "rackUnits": 2,
+  "heightInches": 3.46,
+  "widthInches": 17.2,
+  "depthInches": 28.0,
+  "requiresSupport": false,
+
+  "psuCount": 2,
+  "maxPowerDrawWatts": 750,
+  "idlePowerWatts": 120,
+
+  "chassis": "AS-2024R",
+  "mainboard": "AS-MB-2024",
+
+  "builtInEthernetCount": 2,
+  "builtInSfpCount": 0,
+
+  "bayZones": [
+    {
+      "name": "Front",
+      "faceSide": "FRONT",
+      "driveSize": "LFF",
+      "bayCount": 12,
+      "sortOrder": 0
+    },
+    {
+      "name": "Interior M.2",
+      "faceSide": "INTERIOR",
+      "driveSize": "M2",
+      "bayCount": 2,
+      "sortOrder": 1
+    }
+  ],
+
+  "portGroups": [
+    {
+      "name": "iDRAC",
+      "portCount": 1,
+      "portType": "IPMI",
+      "side": "LEFT",
+      "sortOrder": 0
+    },
+    {
+      "name": "10G SFP+",
+      "portCount": 2,
+      "portType": "SFP_PLUS",
+      "portSpeed": "10G",
+      "side": "LEFT",
+      "sortOrder": 1
+    }
+  ],
+
+  "pciSlots": [
+    { "sortOrder": 0, "size": "x16" },
+    { "sortOrder": 1, "size": "x8" },
+    { "sortOrder": 2, "size": "x8" },
+    { "sortOrder": 3, "size": "M.2 2280" }
+  ]
+}

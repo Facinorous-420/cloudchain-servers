@@ -1,0 +1,17 @@
+{
+  "name": "Raspberry Pi 5",
+  "category": "SBC",
+  "manufacturer": "Raspberry Pi Foundation",
+  "modelNumber": "Raspberry Pi 5",
+  "tags": ["sbc", "raspberry-pi", "pi5", "arm", "homelab"],
+  "thumbnail": "images/front.png",
+  "formFactor": "NON_RACK",
+  "heightInches": 0.67,
+  "widthInches": 3.37,
+  "depthInches": 2.22,
+  "requiresSupport": true,
+  "psuCount": 1,
+  "builtInEthernetCount": 1,
+  "maxPowerDrawWatts": 27,
+  "idlePowerWatts": 5
+}

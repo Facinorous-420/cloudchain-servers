@@ -1,0 +1,75 @@
+import { z } from "zod";
+
+// Inline-edited on the server asset form. CPUs and RAM are persisted as
+// Component rows of type=CPU / type=RAM with installedInId pointing at the
+// server, so they show up in /components like any other Component.
+export const inlineCpuSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(1, "Required"),
+  manufacturer: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  quantity: z.number().int().positive(),
+  speedGHz: z.number().nullable().optional(),
+  cores: z.number().int().nullable().optional(),
+  threads: z.number().int().nullable().optional(),
+  socket: z.string().nullable().optional(),
+  tdpWatts: z.number().int().nullable().optional(),
+});
+export type InlineCpuInput = z.infer<typeof inlineCpuSchema>;
+export const inlineCpusSchema = z.array(inlineCpuSchema);
+
+export const inlineRamSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(1, "Required"),
+  manufacturer: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  quantity: z.number().int().positive(),
+  capacityGB: z.number().int().nullable().optional(),
+  speedMHz: z.number().int().nullable().optional(),
+  generation: z.string().nullable().optional(),
+  ecc: z.boolean().nullable().optional(),
+  formFactor: z.string().nullable().optional(),
+});
+export type InlineRamInput = z.infer<typeof inlineRamSchema>;
+export const inlineRamsSchema = z.array(inlineRamSchema);
+
+// Definition for a new PCIe component created inline from the slot editor
+export const pciNewComponentDraftSchema = z.object({
+  name: z.string().trim().min(1, "Required"),
+  type: z.string().min(1),
+  manufacturer: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  portCount: z.number().int().positive().nullable().optional(),
+  portType: z.string().nullable().optional(),
+  portSpeed: z.string().nullable().optional(),
+  cardInterface: z.string().nullable().optional(),
+});
+export type PciNewComponentDraft = z.infer<typeof pciNewComponentDraftSchema>;
+
+export const inlinePciSlotSchema = z.object({
+  id: z.string().optional(),
+  sortOrder: z.number().int().nonnegative(),
+  size: z.string().min(1),
+  // Display-only fields populated from DB for the edit form (not mutated by server)
+  occupiedByComponentId: z.string().nullable().optional(),
+  occupiedByName: z.string().nullable().optional(),
+  // Pending actions applied on form submit:
+  pendingExistingComponentId: z.string().nullable().optional(), // install an inventory component
+  pendingNewComponent: pciNewComponentDraftSchema.nullable().optional(), // create & install new
+  pendingVacate: z.boolean().optional(), // remove the current occupant
+});
+export type InlinePciSlotInput = z.infer<typeof inlinePciSlotSchema>;
+export const inlinePciSlotsSchema = z.array(inlinePciSlotSchema);
+
+export const inlinePsuSchema = z.object({
+  id: z.string().optional(),
+  sortOrder: z.number().int().nonnegative(),
+  side: z.enum(["LEFT", "CENTER", "RIGHT"]),
+  wattage: z.number().int().positive().nullable().optional(),
+  portCount: z.number().int().positive().default(1),
+  state: z.enum(["IN_USE", "STORED", "SOLD", "JUNKED"]).default("IN_USE"),
+  manufacturer: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+});
+export type InlinePsuInput = z.infer<typeof inlinePsuSchema>;
+export const inlinePsusSchema = z.array(inlinePsuSchema);

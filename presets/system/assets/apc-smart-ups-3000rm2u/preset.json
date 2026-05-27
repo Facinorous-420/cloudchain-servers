@@ -1,0 +1,43 @@
+{
+  "name": "APC Smart-UPS 3000VA RM 2U",
+  "category": "UPS",
+  "manufacturer": "APC",
+  "modelNumber": "SMT3000RM2U",
+  "tags": [
+    "ups",
+    "2u",
+    "apc",
+    "smart-ups",
+    "3000va",
+    "rack"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 2,
+  "heightInches": 3.46,
+  "widthInches": 17.0,
+  "depthInches": 24.0,
+  "requiresSupport": false,
+  "vaRating": 3000,
+  "wattsRating": 2700,
+  "estimatedRuntimeMinutes": 5,
+  "maxPowerDrawWatts": 3000,
+  "outletGroups": [
+    {
+      "name": "Battery Backup + Surge",
+      "outletCount": 8,
+      "batteryBacked": true,
+      "surgeProtected": true,
+      "side": "LEFT",
+      "sortOrder": 0
+    },
+    {
+      "name": "Surge Only",
+      "outletCount": 2,
+      "batteryBacked": false,
+      "surgeProtected": true,
+      "side": "LEFT",
+      "sortOrder": 1
+    }
+  ]
+}

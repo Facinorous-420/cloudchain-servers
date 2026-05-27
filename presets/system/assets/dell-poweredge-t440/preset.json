@@ -1,0 +1,58 @@
+{
+  "name": "Dell PowerEdge T440",
+  "category": "SERVER",
+  "manufacturer": "Dell",
+  "modelNumber": "PowerEdge T440",
+  "tags": [
+    "server",
+    "tower",
+    "dell",
+    "poweredge",
+    "lff"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "TOWER",
+  "rackUnits": 5,
+  "heightInches": 8.8,
+  "widthInches": 6.8,
+  "depthInches": 21.5,
+  "requiresSupport": true,
+  "psuCount": 2,
+  "builtInEthernetCount": 2,
+  "maxPowerDrawWatts": 495,
+  "idlePowerWatts": 80,
+  "chassis": "PowerEdge T440",
+  "bayZones": [
+    {
+      "name": "Front LFF",
+      "faceSide": "FRONT",
+      "driveSize": "LFF",
+      "bayCount": 8,
+      "sortOrder": 0
+    }
+  ],
+  "portGroups": [
+    {
+      "name": "iDRAC",
+      "portCount": 1,
+      "portType": "IPMI",
+      "side": "LEFT",
+      "sortOrder": 0
+    },
+    {
+      "name": "Ethernet",
+      "portCount": 2,
+      "portType": "ETHERNET",
+      "side": "LEFT",
+      "sortOrder": 1
+    }
+  ],
+  "pciSlots": [
+    { "sortOrder": 0, "size": "x16" },
+    { "sortOrder": 1, "size": "x16" },
+    { "sortOrder": 2, "size": "x8" },
+    { "sortOrder": 3, "size": "x8" },
+    { "sortOrder": 4, "size": "x8" },
+    { "sortOrder": 5, "size": "x8" }
+  ]
+}

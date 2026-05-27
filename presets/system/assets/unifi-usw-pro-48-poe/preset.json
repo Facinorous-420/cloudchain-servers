@@ -1,0 +1,22 @@
+{
+  "name": "UniFi USW-Pro-48-PoE",
+  "category": "SWITCH",
+  "manufacturer": "Ubiquiti",
+  "modelNumber": "USW-Pro-48-PoE",
+  "tags": ["switch", "1u", "unifi", "ubiquiti", "poe", "48-port", "sfp+"],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.3,
+  "depthInches": 12.0,
+  "requiresSupport": false,
+  "maxPowerDrawWatts": 600,
+  "idlePowerWatts": 45,
+  "managementType": "UniFi Network Application",
+  "poeBudgetWatts": 600,
+  "portGroups": [
+    { "name": "PoE Ports", "portCount": 48, "portType": "ETHERNET", "poePerPort": 30, "side": "LEFT", "sortOrder": 0 },
+    { "name": "SFP+", "portCount": 4, "portType": "SFP_PLUS", "side": "LEFT", "sortOrder": 1 }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "APC AP7930 Rack PDU",
+  "category": "PDU",
+  "manufacturer": "APC",
+  "modelNumber": "AP7930",
+  "tags": [
+    "pdu",
+    "1u",
+    "apc",
+    "rack",
+    "metered",
+    "24-outlet"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.3,
+  "depthInches": 3.4,
+  "requiresSupport": false,
+  "amperage": "20A",
+  "pduType": "Metered",
+  "maxPowerDrawWatts": 2400,
+  "outletGroups": [
+    {
+      "name": "Outlets",
+      "outletCount": 24,
+      "outletType": "NEMA 5-20R",
+      "batteryBacked": false,
+      "surgeProtected": false,
+      "side": "LEFT",
+      "sortOrder": 0
+    }
+  ]
+}

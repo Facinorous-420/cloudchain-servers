@@ -1,0 +1,17 @@
+{
+  "name": "Raspberry Pi 4 Model B",
+  "category": "SBC",
+  "manufacturer": "Raspberry Pi Foundation",
+  "modelNumber": "Raspberry Pi 4 Model B",
+  "tags": ["sbc", "raspberry-pi", "pi4", "arm", "homelab"],
+  "thumbnail": "images/front.png",
+  "formFactor": "NON_RACK",
+  "heightInches": 0.67,
+  "widthInches": 3.37,
+  "depthInches": 2.22,
+  "requiresSupport": true,
+  "psuCount": 1,
+  "builtInEthernetCount": 1,
+  "maxPowerDrawWatts": 15,
+  "idlePowerWatts": 3
+}

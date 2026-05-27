@@ -1,0 +1,42 @@
+{
+  "name": "CyberPower PR1500LCDRTXL2U",
+  "category": "UPS",
+  "manufacturer": "CyberPower",
+  "modelNumber": "PR1500LCDRTXL2U",
+  "tags": [
+    "ups",
+    "2u",
+    "cyberpower",
+    "1500va",
+    "rack"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 2,
+  "heightInches": 3.46,
+  "widthInches": 17.0,
+  "depthInches": 20.0,
+  "requiresSupport": false,
+  "vaRating": 1500,
+  "wattsRating": 1350,
+  "estimatedRuntimeMinutes": 8,
+  "maxPowerDrawWatts": 1500,
+  "outletGroups": [
+    {
+      "name": "Battery Backup + Surge",
+      "outletCount": 8,
+      "batteryBacked": true,
+      "surgeProtected": true,
+      "side": "LEFT",
+      "sortOrder": 0
+    },
+    {
+      "name": "Surge Only",
+      "outletCount": 2,
+      "batteryBacked": false,
+      "surgeProtected": true,
+      "side": "LEFT",
+      "sortOrder": 1
+    }
+  ]
+}

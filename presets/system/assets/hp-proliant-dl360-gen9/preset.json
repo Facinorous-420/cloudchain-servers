@@ -1,0 +1,57 @@
+{
+  "name": "HPE ProLiant DL360 Gen9",
+  "category": "SERVER",
+  "manufacturer": "HPE",
+  "modelNumber": "DL360 Gen9",
+  "tags": [
+    "server",
+    "1u",
+    "hpe",
+    "proliant",
+    "gen9",
+    "sff"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.5,
+  "depthInches": 27.5,
+  "requiresSupport": false,
+  "psuCount": 2,
+  "builtInEthernetCount": 4,
+  "builtInSfpCount": 0,
+  "maxPowerDrawWatts": 500,
+  "idlePowerWatts": 70,
+  "chassis": "ProLiant DL360 Gen9",
+  "bayZones": [
+    {
+      "name": "Front",
+      "faceSide": "FRONT",
+      "driveSize": "SFF",
+      "bayCount": 10,
+      "sortOrder": 0
+    }
+  ],
+  "portGroups": [
+    {
+      "name": "iLO",
+      "portCount": 1,
+      "portType": "IPMI",
+      "side": "LEFT",
+      "sortOrder": 0
+    },
+    {
+      "name": "Ethernet",
+      "portCount": 4,
+      "portType": "ETHERNET",
+      "side": "LEFT",
+      "sortOrder": 1
+    }
+  ],
+  "pciSlots": [
+    { "sortOrder": 0, "size": "x16" },
+    { "sortOrder": 1, "size": "x8" },
+    { "sortOrder": 2, "size": "x8" }
+  ]
+}

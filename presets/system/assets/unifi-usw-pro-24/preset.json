@@ -1,0 +1,21 @@
+{
+  "name": "UniFi USW-Pro-24",
+  "category": "SWITCH",
+  "manufacturer": "Ubiquiti",
+  "modelNumber": "USW-Pro-24",
+  "tags": ["switch", "1u", "unifi", "ubiquiti", "24-port", "sfp+"],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.3,
+  "depthInches": 10.6,
+  "requiresSupport": false,
+  "maxPowerDrawWatts": 26,
+  "idlePowerWatts": 15,
+  "managementType": "UniFi Network Application",
+  "portGroups": [
+    { "name": "Ethernet", "portCount": 24, "portType": "ETHERNET", "side": "LEFT", "sortOrder": 0 },
+    { "name": "SFP+", "portCount": 4, "portType": "SFP_PLUS", "side": "LEFT", "sortOrder": 1 }
+  ]
+}

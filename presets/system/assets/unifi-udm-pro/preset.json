@@ -1,0 +1,24 @@
+{
+  "name": "UniFi Dream Machine Pro",
+  "category": "GATEWAY",
+  "manufacturer": "Ubiquiti",
+  "modelNumber": "UDM-Pro",
+  "tags": ["gateway", "router", "1u", "unifi", "ubiquiti", "usg", "udm"],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.3,
+  "depthInches": 12.1,
+  "requiresSupport": false,
+  "maxPowerDrawWatts": 33,
+  "idlePowerWatts": 25,
+  "managementType": "UniFi Network Application",
+  "throughputGbps": 3.5,
+  "portGroups": [
+    { "name": "LAN Ports", "portCount": 8, "portType": "ETHERNET", "side": "LEFT", "sortOrder": 0 },
+    { "name": "WAN Ports", "portCount": 1, "portType": "ETHERNET", "side": "LEFT", "sortOrder": 1 },
+    { "name": "SFP+ (LAN)", "portCount": 1, "portType": "SFP_PLUS", "side": "LEFT", "sortOrder": 2 },
+    { "name": "SFP+ (WAN)", "portCount": 1, "portType": "SFP_PLUS", "side": "LEFT", "sortOrder": 3 }
+  ]
+}

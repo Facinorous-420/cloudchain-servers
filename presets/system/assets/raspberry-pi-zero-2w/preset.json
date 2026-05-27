@@ -1,0 +1,16 @@
+{
+  "name": "Raspberry Pi Zero 2 W",
+  "category": "SBC",
+  "manufacturer": "Raspberry Pi Foundation",
+  "modelNumber": "Raspberry Pi Zero 2 W",
+  "tags": ["sbc", "raspberry-pi", "pi-zero", "arm", "wireless", "homelab"],
+  "thumbnail": "images/front.png",
+  "formFactor": "NON_RACK",
+  "heightInches": 0.2,
+  "widthInches": 2.56,
+  "depthInches": 1.18,
+  "requiresSupport": true,
+  "psuCount": 1,
+  "maxPowerDrawWatts": 4,
+  "idlePowerWatts": 1
+}

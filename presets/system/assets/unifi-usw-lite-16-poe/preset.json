@@ -1,0 +1,21 @@
+{
+  "name": "UniFi USW-Lite-16-PoE",
+  "category": "SWITCH",
+  "manufacturer": "Ubiquiti",
+  "modelNumber": "USW-Lite-16-PoE",
+  "tags": ["switch", "non-rack", "unifi", "ubiquiti", "poe", "16-port"],
+  "thumbnail": "images/front.png",
+  "formFactor": "NON_RACK",
+  "heightInches": 1.38,
+  "widthInches": 11.22,
+  "depthInches": 7.52,
+  "requiresSupport": true,
+  "maxPowerDrawWatts": 45,
+  "idlePowerWatts": 8,
+  "managementType": "UniFi Network Application",
+  "poeBudgetWatts": 45,
+  "portGroups": [
+    { "name": "PoE Ports (1–8)", "portCount": 8, "portType": "ETHERNET", "poePerPort": 15, "side": "LEFT", "sortOrder": 0 },
+    { "name": "Ethernet (9–16)", "portCount": 8, "portType": "ETHERNET", "side": "LEFT", "sortOrder": 1 }
+  ]
+}

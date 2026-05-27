@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+/* UniFi-style design tokens — CLAUDE.md §8.
+   Exposed as Tailwind theme values, so e.g. `bg-panel`, `text-text-dim`,
+   `border-border`, `text-accent` are all available as utilities. */
+@theme {
+  --color-bg: #0d1117;
+  --color-panel: #161b22;
+  --color-panel-2: #1c2330;
+  --color-border: #2d333b;
+  --color-text: #e6edf3;
+  --color-text-dim: #8b949e;
+  --color-faint: #5b6470;
+  --color-accent: #00a8c6;
+  --color-status-green: #3fb950;
+
+  /* Asset category accent colours — CLAUDE.md §7 / §8 */
+  --color-cat-firewall: #c678dd;
+  --color-cat-switch: #3b82f6;
+  --color-cat-server: #3fb950;
+  --color-cat-ups: #d9a441;
+  --color-cat-pdu: #7c8794;
+  --color-cat-kvm: #e0823d;
+
+  /* Per-port-type accent colours — customisable in Admin › Settings.
+     These default values mirror the original hard-coded class strings so
+     existing diagrams look unchanged until an admin overrides them. */
+  --color-port-ethernet:      #3fb950;
+  --color-port-fast-ethernet: #7bc47f;
+  --color-port-ipmi:          #c678dd;
+  --color-port-sfp:           #3b82f6;
+  --color-port-qsfp:          #3b82f6;
+  --color-port-console:       #e0823d;
+  --color-port-usb:           #f97316;
+  --color-port-serial:        #94a3b8;
+  --color-port-fiber:         #06b6d4;
+  --color-port-thunderbolt:   #8b5cf6;
+
+  /* Lato is loaded via next/font in layout.tsx, exposed as --font-lato. */
+  --font-sans: var(--font-lato), ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+/* UniFi-style checkbox: filled teal square with white check when on, faint
+   bordered square when off. Pure CSS so it works in form rows, table cells,
+   and inline editors without needing a wrapper component. */
+.ui-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: var(--color-panel-2);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.ui-checkbox:hover {
+  border-color: var(--color-accent);
+}
+.ui-checkbox:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+.ui-checkbox:checked {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3.5,8.5 6.5,11.5 12.5,4.5'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+.ui-checkbox:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

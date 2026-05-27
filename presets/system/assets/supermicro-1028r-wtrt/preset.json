@@ -1,0 +1,54 @@
+{
+  "name": "Supermicro SuperServer 1028R-WTRT",
+  "category": "SERVER",
+  "manufacturer": "Supermicro",
+  "modelNumber": "1028R-WTRT",
+  "tags": [
+    "server",
+    "1u",
+    "supermicro",
+    "sff",
+    "dual-socket"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.2,
+  "depthInches": 28.5,
+  "requiresSupport": false,
+  "psuCount": 2,
+  "builtInEthernetCount": 4,
+  "maxPowerDrawWatts": 600,
+  "idlePowerWatts": 90,
+  "chassis": "SuperServer 1028R-WTRT",
+  "bayZones": [
+    {
+      "name": "Front",
+      "faceSide": "FRONT",
+      "driveSize": "SFF",
+      "bayCount": 10,
+      "sortOrder": 0
+    }
+  ],
+  "portGroups": [
+    {
+      "name": "IPMI",
+      "portCount": 1,
+      "portType": "IPMI",
+      "side": "LEFT",
+      "sortOrder": 0
+    },
+    {
+      "name": "Ethernet",
+      "portCount": 4,
+      "portType": "ETHERNET",
+      "side": "LEFT",
+      "sortOrder": 1
+    }
+  ],
+  "pciSlots": [
+    { "sortOrder": 0, "size": "x16" },
+    { "sortOrder": 1, "size": "x8" }
+  ]
+}

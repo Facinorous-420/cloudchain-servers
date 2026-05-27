@@ -1,0 +1,24 @@
+{
+  "name": "UniFi Dream Machine Special Edition",
+  "category": "GATEWAY",
+  "manufacturer": "Ubiquiti",
+  "modelNumber": "UDM-SE",
+  "tags": ["gateway", "router", "1u", "unifi", "ubiquiti", "poe", "udm"],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.3,
+  "depthInches": 12.1,
+  "requiresSupport": false,
+  "maxPowerDrawWatts": 60,
+  "idlePowerWatts": 30,
+  "managementType": "UniFi Network Application",
+  "throughputGbps": 3.5,
+  "poeBudgetWatts": 60,
+  "portGroups": [
+    { "name": "PoE Ports", "portCount": 8, "portType": "ETHERNET", "poePerPort": 30, "side": "LEFT", "sortOrder": 0 },
+    { "name": "WAN", "portCount": 1, "portType": "ETHERNET", "side": "LEFT", "sortOrder": 1 },
+    { "name": "SFP+", "portCount": 2, "portType": "SFP_PLUS", "side": "LEFT", "sortOrder": 2 }
+  ]
+}

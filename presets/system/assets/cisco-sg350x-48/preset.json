@@ -1,0 +1,21 @@
+{
+  "name": "Cisco SG350X-48",
+  "category": "SWITCH",
+  "manufacturer": "Cisco",
+  "modelNumber": "SG350X-48",
+  "tags": ["switch", "1u", "cisco", "sg350x", "48-port", "sfp+"],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.5,
+  "depthInches": 12.1,
+  "requiresSupport": false,
+  "maxPowerDrawWatts": 45,
+  "idlePowerWatts": 25,
+  "managementType": "Managed (Web/CLI)",
+  "portGroups": [
+    { "name": "Ethernet", "portCount": 48, "portType": "ETHERNET", "side": "LEFT", "sortOrder": 0 },
+    { "name": "SFP+", "portCount": 2, "portType": "SFP_PLUS", "side": "LEFT", "sortOrder": 1 }
+  ]
+}

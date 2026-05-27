@@ -1,0 +1,691 @@
+// Cloudchain Inventory — Prisma schema
+//
+// Implements the data model from CLAUDE.md §5 with the Phase 4 polish refinements
+// applied (Storage table, PortGroup/OutletGroup, CPU/RAM tracked as Components,
+// inlined ServerSpec, category-specific stat fields, etc.).
+//
+// Prisma 7: the connection URL lives in prisma.config.ts and is passed to
+// PrismaClient via the pg driver adapter — not in this datasource block.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Auth ----------
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  displayName  String?
+  role           Role     @default(MEMBER)
+  isInitialAdmin Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum LifecycleState {
+  IN_USE
+  STORED
+  SOLD
+  JUNKED
+  USED_UP // Consumable only
+}
+
+// ---------- Racks ----------
+model Rack {
+  id               String    @id @default(cuid())
+  name             String
+  totalU           Int       @default(25)
+  columnCount      Int       @default(6) // grid columns for tower placement
+  depthInches      Float?    // physical rack depth; used for shelf coexistence validation
+  manufacturer     String?
+  modelNumber      String?
+  serialNumber     String?
+  condition        String?
+  purchaseDate     DateTime?
+  purchasePrice    Decimal?  @db.Decimal(10, 2)
+  purchasedFrom    String?
+  purchasedFromUrl String?
+  inUse            Boolean   @default(true)
+  // The "landing" rack on /topology — at most one row is true. Enforced in
+  // the setDefaultRack action (sets the chosen row, clears every other).
+  isDefault        Boolean   @default(false)
+  isLocked         Boolean   @default(false)
+  notes            String?
+  imagePath        String?
+  assets           Asset[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+// ---------- Storages: named off-rack containers (Box1, Shelf3, etc.) ----------
+model Storage {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  notes     String?
+  imagePath String?
+  assets    Asset[]
+  batteries Battery[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// ---------- Asset: any top-level physical unit ----------
+model Asset {
+  id           String        @id @default(cuid())
+  codename     String        @unique // stable id, e.g. HP-DL380-G9-SFF-1
+  name         String
+  category     AssetCategory
+  manufacturer String?
+  modelNumber  String?
+  serialNumber String?
+  condition    String? // new / used / refurbished / open box
+
+  // acquisition & disposal
+  purchaseDate            DateTime?
+  purchasePrice           Decimal?  @db.Decimal(10, 2)
+  purchasePriceBeforeShip Decimal?  @db.Decimal(10, 2)
+  purchasedFrom           String?
+  purchasedFromUrl        String?
+  state                   LifecycleState @default(IN_USE)
+  soldDate                DateTime?
+  soldPrice               Decimal?  @db.Decimal(10, 2)
+  notes                   String?
+  imagePath               String?
+
+  // common stat-tracking
+  maxPowerDrawWatts Int?
+  idlePowerWatts    Int?
+  warrantyEndDate   DateTime?
+  firmwareVersion   String?
+
+  // physical form
+  formFactor      FormFactor @default(RACK)
+  heightInches    Float?
+  widthInches     Float?
+  depthInches     Float?
+  rackUnits       Int? // required when formFactor in (RACK, TOWER) — enforced in app
+  requiresSupport Boolean    @default(false)
+
+  // placement — Phase 8 diagram manages rack placement; new assets default to STORAGE
+  location      AssetLocation @default(STORAGE)
+  storage       Storage?      @relation(fields: [storageId], references: [id])
+  storageId     String?
+  rack          Rack?         @relation(fields: [rackId], references: [id])
+  rackId        String?
+  startU        Int?
+  gridColumn    Int?
+  columnSpan    Int?
+  parentAsset   Asset?        @relation("ShelfItems", fields: [parentAssetId], references: [id])
+  parentAssetId String?
+  shelfItems    Asset[]       @relation("ShelfItems")
+
+  // built-in port / outlet counts (multi-section ports use PortGroup / OutletGroup)
+  builtInEthernetCount        Int? // SERVER, NUC, AP
+  builtInSfpCount             Int? // SERVER, AP
+  surgeProtectedEthernetCount Int? // UPS pass-through
+  kvmChannelCount             Int? // KVM
+  psuCount                    Int? // SERVER, NUC
+
+  // SERVER / NUC server-spec (formerly ServerSpec table — inlined)
+  chassis         String?
+  mainboard       String?
+  raidController  String?
+  operatingSystem String?
+  biosVersion     String?
+  extras          String?
+
+  // SWITCH-specific
+  managementType String? // managed / lite / unmanaged
+  poeBudgetWatts Int?
+
+  // GATEWAY / FIREWALL-specific
+  throughputGbps           Float?
+  maxConcurrentConnections Int?
+
+  // UPS-specific
+  vaRating                Int?
+  wattsRating             Int?
+  estimatedRuntimeMinutes Int?
+
+  // PDU-specific
+  amperage String? // "15A", "20A", "30A"
+  pduType  String? // basic / switched / metered
+
+  // KVM-specific
+  supportedProtocols String? // free text — "HDMI, DP, VGA"
+
+  // ACCESS_POINT-specific
+  wifiStandard      String? // Wi-Fi 4 / 5 / 6 / 6E / 7
+  maxThroughputMbps Int?
+  bandSupport       String? // stored as comma-separated "2.4,5,6"
+  bandsLegacyText   String? // populated by migration when old free-text doesn't parse
+  poeInputType      String? // af / at / bt / none
+  placement         String? // indoor / outdoor
+
+  // SHELF-specific
+  maxLoadLbs Float?
+  ventilated Boolean?
+
+  // DRAWER-specific
+  drawerType         String? // keyboard / storage
+  pulloutDepthInches Float?
+
+  // BLANK_PANEL-specific
+  purpose String? // airflow / aesthetic / security
+
+  // PATCH_PANEL-specific
+  patchPanelType String? // "KEYSTONE" (permanent punch-down rear) | "COUPLER" (ethernet both sides)
+
+  // Side of the chassis the built-in ports / PSU connectors live on. Used by
+  // the cable-length estimator when a Connection references a built-in port
+  // (no PortGroup). Null = unknown; estimator falls back to LEFT.
+  builtInPortsSide DeviceSide?
+
+  // Which physical face of the device faces the rack front. FRONT_REAR means
+  // the device is mounted "backwards" — topology swaps the face rendering.
+  // Only meaningful for full-depth items (rackFace = null).
+  faceOrientation FaceOrientation @default(FRONT_FRONT)
+
+  // For thin items (patch panels, blank panels, shelves): which rack face this
+  // asset is mounted from. null = full-depth (occupies both faces).
+  rackFace RackFace?
+
+  // relations
+  bayZones     BayZone[]
+  drives       Drive[]
+  components   Component[]
+  batteries    Battery[]
+  applications Application[]
+  licenseLinks LicenseAssignment[]
+  portGroups   PortGroup[]
+  outletGroups OutletGroup[]
+  psus         Psu[]
+  images       AssetImage[]
+  pciSlots     PciSlot[]
+  connectionsA Connection[]        @relation("AEnd")
+  connectionsB Connection[]        @relation("BEnd")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum AssetCategory {
+  SERVER
+  SWITCH
+  PATCH_PANEL
+  GATEWAY
+  FIREWALL
+  UPS
+  PDU
+  KVM
+  ACCESS_POINT
+  NUC
+  SBC
+  SHELF
+  DRAWER
+  BLANK_PANEL
+  OTHER
+}
+
+enum FormFactor {
+  RACK
+  TOWER
+  SHELF_ITEM
+  NON_RACK
+}
+
+enum AssetLocation {
+  RACKED
+  STORAGE
+  ON_SHELF
+  RETIRED
+  OFFSITE
+}
+
+// ---------- Drive bay layout of a server ----------
+// A bay zone belongs to either an Asset (server drive bays) or a Component of
+// type NVME_RISER (M.2 slots on the riser). Exactly one of assetId/componentId
+// must be set — enforced in Zod, not at the DB level.
+model BayZone {
+  id          String     @id @default(cuid())
+  asset       Asset?     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId     String?
+  component   Component? @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  componentId String?
+  name        String
+  faceSide    FaceSide   @default(FRONT)
+  driveSize   DriveSize
+  bayCount    Int
+  sortOrder   Int        @default(0)
+  drives      Drive[]
+}
+
+enum FaceSide {
+  FRONT
+  REAR
+  INTERIOR
+}
+
+enum DriveSize {
+  LFF
+  SFF
+  M2
+}
+
+// ---------- Hard drives / SSDs ----------
+model Drive {
+  id               String    @id @default(cuid())
+  name             String
+  manufacturer     String?
+  model            String?
+  kind             DriveKind
+  size             DriveSize // physical form factor — must match the bay zone it's installed in
+  capacityGB       Int
+  serialNumber     String?
+  manufactureDate  DateTime?
+  purchaseDate     DateTime?
+  purchasePrice    Decimal?  @db.Decimal(10, 2)
+  purchasedFrom    String?
+  purchasedFromUrl String?
+  condition        String?
+  assignedUse      String? // logical role: "Unraid array", "OS mirror"
+  state            LifecycleState @default(IN_USE)
+  soldDate         DateTime?
+  soldPrice        Decimal?  @db.Decimal(10, 2)
+  notes            String?
+  imagePath        String?
+
+  installedIn   Asset?   @relation(fields: [installedInId], references: [id])
+  installedInId String?
+  bayZone       BayZone? @relation(fields: [bayZoneId], references: [id])
+  bayZoneId     String?
+  bayNumber     Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum DriveKind {
+  HDD
+  SSD
+  SAS
+  NVME
+}
+
+// ---------- Components: RAM, CPU, RAID cards, NIC cards, PSU, etc. ----------
+model Component {
+  id            String        @id @default(cuid())
+  name          String
+  type          ComponentType
+  manufacturer     String?
+  model            String?
+  specs            String? // free-text fallback for anything not captured below
+  serialNumber     String?
+  quantity         Int           @default(1)
+  purchaseDate     DateTime?
+  purchasePrice    Decimal?      @db.Decimal(10, 2)
+  purchasedFrom    String?
+  purchasedFromUrl String?
+  notes            String?
+  imagePath        String?
+  installedIn      Asset?        @relation(fields: [installedInId], references: [id])
+  installedInId    String?
+
+  // CPU-specific
+  speedGHz Float?
+  cores    Int?
+  threads  Int?
+  socket   String? // LGA2011, AM4, etc.
+  tdpWatts Int?
+
+  // RAM-specific
+  capacityGB Int?
+  speedMHz   Int?
+  generation String? // DDR3 / DDR4 / DDR5
+  ecc        Boolean?
+  formFactor String? // DIMM / SO-DIMM
+
+  // NIC_CARD-specific
+  portCount Int?
+  portType  PortType?
+  portSpeed String? // "1G", "10G"
+
+  // RAID_CONTROLLER / PCIE_CARD / NIC_CARD shared
+  cardInterface String? // "PCIe 3.0 x8"
+
+  // POWER_SUPPLY-specific
+  wattsRating Int?
+  modular     Boolean?
+
+  // NVME_RISER-specific: how many M.2 slots on the riser card
+  m2SlotCount Int?
+
+  state     LifecycleState @default(IN_USE)
+  soldDate  DateTime?
+  soldPrice Decimal?       @db.Decimal(10, 2)
+
+  // back-relations
+  bayZones BayZone[] // for NVME_RISER: M.2 bay zones attached to this riser
+  pciSlot  PciSlot?  // the PCIe slot this component occupies (if any)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ComponentType {
+  RAM
+  CADDY
+  RAID_CONTROLLER
+  RAIL_KIT
+  PCIE_CARD
+  NIC_CARD
+  GPU
+  CPU
+  POWER_SUPPLY
+  BLANKING_PANEL
+  ADAPTER
+  NVME_RISER
+  OTHER
+}
+
+// ---------- Network port groups (for switches / gateways / firewalls / APs) ----------
+model PortGroup {
+  id         String     @id @default(cuid())
+  asset      Asset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId    String
+  name       String? // "Access", "Uplink"
+  portCount  Int
+  portType   PortType
+  portSpeed  String? // "1G", "10G", "100G"
+  poePerPort Int? // watts
+  side       DeviceSide @default(LEFT) // which side of the chassis this strip sits on
+  sortOrder  Int        @default(0)
+
+  aEndConnections Connection[] @relation("AEndPort")
+  bEndConnections Connection[] @relation("BEndPort")
+}
+
+enum DeviceSide {
+  LEFT
+  CENTER
+  RIGHT
+}
+
+enum FaceOrientation {
+  FRONT_FRONT // physical front faces rack front (default)
+  FRONT_REAR  // physical front faces rack rear (reversed mount)
+}
+
+// Which physical face of the rack a thin item (patch panel, blank, shelf)
+// is mounted from. null = full-depth — occupies both faces and blocks both.
+// FRONT = front-rail mounted; REAR = rear-rail mounted. Thin items on opposite
+// faces can coexist at the same U (subject to shelf depth validation).
+enum RackFace {
+  FRONT
+  REAR
+}
+
+enum PortType {
+  ETHERNET
+  FAST_ETHERNET
+  IPMI
+  SFP
+  SFP_PLUS
+  SFP28
+  QSFP
+  QSFP_PLUS
+  QSFP28
+  CONSOLE
+  USB
+}
+
+// ---------- Outlet groups (for UPS / PDU) ----------
+model OutletGroup {
+  id             String     @id @default(cuid())
+  asset          Asset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId        String
+  name           String? // "Battery backup", "Surge only"
+  outletCount    Int
+  outletType     String? // "NEMA 5-15R", "C13", etc.
+  batteryBacked  Boolean    @default(false)
+  surgeProtected Boolean    @default(true)
+  side           DeviceSide @default(LEFT)
+  sortOrder      Int        @default(0)
+
+  aEndConnections Connection[] @relation("AEndOutlet")
+  bEndConnections Connection[] @relation("BEndOutlet")
+}
+
+// ---------- Batteries (inside UPS units) ----------
+model Battery {
+  id               String    @id @default(cuid())
+  name             String
+  manufacturer     String?
+  model            String?
+  voltage          Float?
+  capacityAh       Float?
+  quantity         Int       @default(1)
+  installDate      DateTime?
+  purchaseDate     DateTime?
+  purchasePrice    Decimal?  @db.Decimal(10, 2)
+  purchasedFrom    String?
+  purchasedFromUrl String?
+  state            LifecycleState @default(IN_USE)
+  soldDate         DateTime?
+  soldPrice        Decimal?  @db.Decimal(10, 2)
+  notes            String?
+  imagePath        String?
+  installedIn   Asset?    @relation(fields: [installedInId], references: [id])
+  installedInId String?
+  storage       Storage?  @relation(fields: [storageId], references: [id])
+  storageId     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ---------- Consumables ----------
+model Consumable {
+  id               String    @id @default(cuid())
+  name             String
+  type             String?
+  quantity         Int       @default(1)
+  location         String?
+  purchaseDate     DateTime?
+  purchasePrice    Decimal?  @db.Decimal(10, 2)
+  purchasedFrom    String?
+  purchasedFromUrl String?
+  state            LifecycleState @default(IN_USE)
+  notes            String?
+  imagePath        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ---------- Licenses ----------
+model License {
+  id            String              @id @default(cuid())
+  name          String
+  type          String? // OS / VPN / EMAIL / SOFTWARE
+  licenseKey    String?
+  seats         Int?
+  renewalPeriod RenewalPeriod?
+  renewalDate      DateTime? // auto-computed on save from purchaseDate + renewalPeriod
+  purchaseDate     DateTime?
+  cost             Decimal?            @db.Decimal(10, 2)
+  purchasedFrom    String?
+  purchasedFromUrl String?
+  notes            String?
+  imagePath        String?
+  assignments   LicenseAssignment[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+enum RenewalPeriod {
+  DAILY
+  WEEKLY
+  BI_WEEKLY
+  MONTHLY
+  QUARTERLY
+  BI_ANNUAL
+  ANNUAL
+  TWO_YEARS
+  FIVE_YEARS
+  TEN_YEARS
+  PERPETUAL
+}
+
+model LicenseAssignment {
+  id        String  @id @default(cuid())
+  license   License @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  licenseId String
+  asset     Asset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId   String
+
+  @@unique([licenseId, assetId])
+}
+
+// ---------- Applications & VMs running on a server ----------
+model Application {
+  id              String   @id @default(cuid())
+  name            String
+  type            AppType  @default(SERVICE)
+  host            Asset    @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  hostId          String
+  operatingSystem String?
+  status          String?
+  notes           String?
+  imagePath       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum AppType {
+  VM
+  CONTAINER
+  SERVICE
+}
+
+// ---------- Connections: network / power / KVM / console ----------
+//
+// Endpoint addressing: every connection has a free-text label per end (for
+// display + free-form "USB 3" / "Console" cases). NETWORK / POWER endpoints
+// may also reference a specific PortGroup / OutletGroup and a port/outlet
+// number; that structured ref drives the cable-length estimator.
+model Connection {
+  id          String         @id @default(cuid())
+  type        ConnectionType
+  aEnd        Asset          @relation("AEnd", fields: [aEndAssetId], references: [id], onDelete: Cascade)
+  aEndAssetId String
+  aEndLabel   String
+  bEnd        Asset?         @relation("BEnd", fields: [bEndAssetId], references: [id], onDelete: Cascade)
+  bEndAssetId String?
+  bEndLabel   String?
+
+  // Structured endpoint refs (optional). Used by the cable-length estimator
+  // to look up the side of each port. Set at most one per end.
+  aEndPortGroup     PortGroup?   @relation("AEndPort", fields: [aEndPortGroupId], references: [id], onDelete: SetNull)
+  aEndPortGroupId   String?
+  aEndPortNumber    Int?
+  bEndPortGroup     PortGroup?   @relation("BEndPort", fields: [bEndPortGroupId], references: [id], onDelete: SetNull)
+  bEndPortGroupId   String?
+  bEndPortNumber    Int?
+  aEndOutletGroup   OutletGroup? @relation("AEndOutlet", fields: [aEndOutletGroupId], references: [id], onDelete: SetNull)
+  aEndOutletGroupId String?
+  aEndOutletNumber  Int?
+  bEndOutletGroup   OutletGroup? @relation("BEndOutlet", fields: [bEndOutletGroupId], references: [id], onDelete: SetNull)
+  bEndOutletGroupId String?
+  bEndOutletNumber  Int?
+
+  // Cable info — `isPatch` skips the service-loop slack in the estimate.
+  cableType                String?
+  cableCategory            String? // "Cat6", "Cat6a", "C13/C14", etc.
+  isPatch                  Boolean @default(false)
+  speed                    String? // "1G", "10G", etc. — NETWORK only
+  cableLengthFeet          Int? // user-entered actual length
+  estimatedCableLengthFeet Int? // last computed estimate cached at save
+  serviceLoopLengthInches  Int? // per-connection override; null = use global AppSettings value
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ConnectionType {
+  NETWORK
+  POWER
+  KVM
+  CONSOLE
+}
+
+// ---------- PSUs (first-class items; replaces Asset.psuCount int) ----------
+model Psu {
+  id            String         @id @default(cuid())
+  asset         Asset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId       String
+  sortOrder     Int            @default(0)
+  side          DeviceSide     @default(LEFT)
+  wattage       Int?
+  portCount     Int            @default(1)
+  state         LifecycleState @default(IN_USE)
+  manufacturer  String?
+  model         String?
+  serialNumber  String?
+  purchaseDate  DateTime?
+  purchasePrice Decimal?       @db.Decimal(10, 2)
+  purchasedFrom String?
+  soldDate      DateTime?
+  soldPrice     Decimal?       @db.Decimal(10, 2)
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+// ---------- Asset image gallery ----------
+// At most one row per asset may have isMain = true — enforced by a partial
+// unique index in the migration SQL.
+model AssetImage {
+  id        String  @id @default(cuid())
+  asset     Asset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId   String
+  path      String
+  sortOrder Int     @default(0)
+  isMain    Boolean @default(false)
+
+  @@index([assetId])
+}
+
+// ---------- PCIe slots on a server ----------
+model PciSlot {
+  id                    String     @id @default(cuid())
+  asset                 Asset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId               String
+  sortOrder             Int        @default(0)
+  size                  String // "x1", "x4", "x8", "x16", "M.2 2280", etc.
+  occupiedBy            Component? @relation(fields: [occupiedByComponentId], references: [id], onDelete: SetNull)
+  occupiedByComponentId String?    @unique
+}
+
+// ---------- App-wide settings (singleton: id is always 1) ----------
+model AppSettings {
+  id                      Int    @id @default(1)
+  appName                 String @default("Cloudchain Inventory")
+  appDescription          String @default("Homelab server rack inventory and documentation")
+  accentColor             String @default("#00a8c6")
+  serviceLoopLengthInches Int    @default(12)
+  // Diagram appearance customization — null means "use built-in defaults"
+  portTypeColors          Json?  // { "port-ethernet": "#3fb950", "port-sfp": "#3b82f6", ... }
+  portTypeLabels          Json?  // { "ETHERNET": "GbE", "SFP": "S", "SFP_PLUS": "S+", ... }
+  categoryColors          Json?  // { "cat-server": "#3fb950", "cat-switch": "#3b82f6", ... }
+}

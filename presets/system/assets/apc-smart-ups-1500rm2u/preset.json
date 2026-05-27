@@ -1,0 +1,43 @@
+{
+  "name": "APC Smart-UPS 1500VA RM 2U",
+  "category": "UPS",
+  "manufacturer": "APC",
+  "modelNumber": "SMT1500RM2U",
+  "tags": [
+    "ups",
+    "2u",
+    "apc",
+    "smart-ups",
+    "1500va",
+    "rack"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 2,
+  "heightInches": 3.46,
+  "widthInches": 17.0,
+  "depthInches": 21.5,
+  "requiresSupport": false,
+  "vaRating": 1500,
+  "wattsRating": 980,
+  "estimatedRuntimeMinutes": 7,
+  "maxPowerDrawWatts": 1500,
+  "outletGroups": [
+    {
+      "name": "Battery Backup + Surge",
+      "outletCount": 8,
+      "batteryBacked": true,
+      "surgeProtected": true,
+      "side": "LEFT",
+      "sortOrder": 0
+    },
+    {
+      "name": "Surge Only",
+      "outletCount": 2,
+      "batteryBacked": false,
+      "surgeProtected": true,
+      "side": "LEFT",
+      "sortOrder": 1
+    }
+  ]
+}

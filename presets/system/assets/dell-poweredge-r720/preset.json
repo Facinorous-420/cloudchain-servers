@@ -1,0 +1,67 @@
+{
+  "name": "Dell PowerEdge R720",
+  "category": "SERVER",
+  "manufacturer": "Dell",
+  "modelNumber": "PowerEdge R720",
+  "tags": [
+    "server",
+    "2u",
+    "dell",
+    "poweredge",
+    "lff",
+    "homelab"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 2,
+  "heightInches": 3.46,
+  "widthInches": 17.5,
+  "depthInches": 28.0,
+  "requiresSupport": false,
+  "psuCount": 2,
+  "builtInEthernetCount": 4,
+  "maxPowerDrawWatts": 750,
+  "idlePowerWatts": 100,
+  "chassis": "PowerEdge R720",
+  "bayZones": [
+    {
+      "name": "Front",
+      "faceSide": "FRONT",
+      "driveSize": "LFF",
+      "bayCount": 8,
+      "sortOrder": 0
+    },
+    {
+      "name": "Rear SSD",
+      "faceSide": "REAR",
+      "driveSize": "SFF",
+      "bayCount": 2,
+      "sortOrder": 1
+    }
+  ],
+  "portGroups": [
+    {
+      "name": "iDRAC",
+      "portCount": 1,
+      "portType": "IPMI",
+      "side": "LEFT",
+      "sortOrder": 0
+    },
+    {
+      "name": "Ethernet",
+      "portCount": 4,
+      "portType": "ETHERNET",
+      "side": "LEFT",
+      "sortOrder": 1
+    }
+  ],
+  "pciSlots": [
+    { "sortOrder": 0, "size": "x16" },
+    { "sortOrder": 1, "size": "x16" },
+    { "sortOrder": 2, "size": "x8" },
+    { "sortOrder": 3, "size": "x8" },
+    { "sortOrder": 4, "size": "x8" },
+    { "sortOrder": 5, "size": "x8" },
+    { "sortOrder": 6, "size": "x8" }
+  ]
+}

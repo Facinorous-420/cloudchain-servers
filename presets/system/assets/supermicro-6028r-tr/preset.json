@@ -1,0 +1,58 @@
+{
+  "name": "Supermicro SuperServer 6028R-TR",
+  "category": "SERVER",
+  "manufacturer": "Supermicro",
+  "modelNumber": "6028R-TR",
+  "tags": [
+    "server",
+    "2u",
+    "supermicro",
+    "lff",
+    "dual-socket"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 2,
+  "heightInches": 3.5,
+  "widthInches": 17.2,
+  "depthInches": 28.5,
+  "requiresSupport": false,
+  "psuCount": 2,
+  "builtInEthernetCount": 2,
+  "maxPowerDrawWatts": 700,
+  "idlePowerWatts": 105,
+  "chassis": "SuperServer 6028R-TR",
+  "bayZones": [
+    {
+      "name": "Front",
+      "faceSide": "FRONT",
+      "driveSize": "LFF",
+      "bayCount": 12,
+      "sortOrder": 0
+    }
+  ],
+  "portGroups": [
+    {
+      "name": "IPMI",
+      "portCount": 1,
+      "portType": "IPMI",
+      "side": "LEFT",
+      "sortOrder": 0
+    },
+    {
+      "name": "Ethernet",
+      "portCount": 2,
+      "portType": "ETHERNET",
+      "side": "LEFT",
+      "sortOrder": 1
+    }
+  ],
+  "pciSlots": [
+    { "sortOrder": 0, "size": "x16" },
+    { "sortOrder": 1, "size": "x16" },
+    { "sortOrder": 2, "size": "x8" },
+    { "sortOrder": 3, "size": "x8" },
+    { "sortOrder": 4, "size": "x8" },
+    { "sortOrder": 5, "size": "x8" }
+  ]
+}

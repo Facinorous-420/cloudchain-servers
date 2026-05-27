@@ -1,0 +1,21 @@
+{
+  "name": "Cisco Catalyst 2960X-48TD-L",
+  "category": "SWITCH",
+  "manufacturer": "Cisco",
+  "modelNumber": "WS-C2960X-48TD-L",
+  "tags": ["switch", "1u", "cisco", "catalyst", "48-port", "sfp+"],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.5,
+  "depthInches": 12.5,
+  "requiresSupport": false,
+  "maxPowerDrawWatts": 55,
+  "idlePowerWatts": 35,
+  "managementType": "Managed (IOS)",
+  "portGroups": [
+    { "name": "Ethernet", "portCount": 48, "portType": "ETHERNET", "side": "LEFT", "sortOrder": 0 },
+    { "name": "SFP+", "portCount": 2, "portType": "SFP_PLUS", "side": "LEFT", "sortOrder": 1 }
+  ]
+}

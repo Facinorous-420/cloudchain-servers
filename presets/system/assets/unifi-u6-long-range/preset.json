@@ -1,0 +1,23 @@
+{
+  "name": "UniFi U6 Long Range",
+  "category": "ACCESS_POINT",
+  "manufacturer": "Ubiquiti",
+  "modelNumber": "U6-LR",
+  "tags": ["access-point", "wifi6", "unifi", "ubiquiti", "long-range", "ceiling-mount"],
+  "thumbnail": "images/front.png",
+  "formFactor": "NON_RACK",
+  "heightInches": 1.57,
+  "widthInches": 7.87,
+  "depthInches": 7.87,
+  "requiresSupport": true,
+  "maxPowerDrawWatts": 20,
+  "idlePowerWatts": 9,
+  "wifiStandard": "Wi-Fi 6 (802.11ax)",
+  "maxThroughputMbps": 3000,
+  "bandSupport": "2.4GHz + 5GHz",
+  "poeInputType": "802.3at (PoE+)",
+  "placement": "Ceiling",
+  "portGroups": [
+    { "name": "Ethernet", "portCount": 1, "portType": "ETHERNET", "side": "LEFT", "sortOrder": 0 }
+  ]
+}

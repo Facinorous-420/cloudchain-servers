@@ -1,0 +1,35 @@
+{
+  "name": "Tripp-Lite PDUMH20AT",
+  "category": "PDU",
+  "manufacturer": "Tripp Lite",
+  "modelNumber": "PDUMH20AT",
+  "tags": [
+    "pdu",
+    "1u",
+    "tripp-lite",
+    "rack",
+    "metered",
+    "20A"
+  ],
+  "thumbnail": "images/front.png",
+  "formFactor": "RACK",
+  "rackUnits": 1,
+  "heightInches": 1.75,
+  "widthInches": 17.3,
+  "depthInches": 3.2,
+  "requiresSupport": false,
+  "amperage": "20A",
+  "pduType": "Metered",
+  "maxPowerDrawWatts": 2400,
+  "outletGroups": [
+    {
+      "name": "Outlets",
+      "outletCount": 24,
+      "outletType": "NEMA 5-20R",
+      "batteryBacked": false,
+      "surgeProtected": false,
+      "side": "LEFT",
+      "sortOrder": 0
+    }
+  ]
+}

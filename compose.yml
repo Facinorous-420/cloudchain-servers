@@ -1,0 +1,43 @@
+# Production docker-compose for Cloudchain Inventory.
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: cloudchain-servers-db
+    user: "3000:3000"
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cloudchain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-cloudchain}
+    volumes:
+      - ./data/db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-cloudchain} -d $${POSTGRES_DB:-cloudchain}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      # Build context points at the cloned repo. 
+      # Update by running `git pull` inside ./app and then `docker compose up -d --build`.
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: cloudchain-servers-app
+    user: "3000:3000"
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-cloudchain}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cloudchain}?schema=public"
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+      AUTH_URL: "https://example.com"
+    volumes:
+      # User-uploaded entity images.
+      - ./data/app/uploads:/app/public/uploads
+      # Custom and user-created presets.
+      - ./data/app/presets:/app/presets/custom
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
