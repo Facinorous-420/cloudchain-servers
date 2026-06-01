@@ -372,7 +372,8 @@ model Component {
   portSpeed String? // "1G", "10G"
 
   // RAID_CONTROLLER / PCIE_CARD / NIC_CARD shared
-  cardInterface String? // "PCIe 3.0 x8"
+  cardInterface String? // "PCIe 3.0 x8" — free-text generation/interface
+  cardSize      String? // structured connector size (x1/x4/x8/x16/M.2 2242…) for slot-fit filtering
 
   // POWER_SUPPLY-specific
   wattsRating Int?

@@ -11,7 +11,21 @@ import {
   type ComponentFormValues,
 } from "@/lib/schemas/component";
 
-const CARD_TYPES = new Set(["RAID_CONTROLLER", "PCIE_CARD", "NIC_CARD"]);
+const CARD_TYPES = new Set([
+  "RAID_CONTROLLER",
+  "PCIE_CARD",
+  "NIC_CARD",
+  "GPU",
+  "NVME_RISER",
+]);
+// Types that occupy a PCIe/M.2 slot and therefore carry a structured cardSize.
+const SIZED_CARD_TYPES = new Set([
+  "RAID_CONTROLLER",
+  "PCIE_CARD",
+  "NIC_CARD",
+  "GPU",
+  "NVME_RISER",
+]);
 
 // Only persist type-specific fields when they actually apply to the chosen
 // type — for everything else, write null so the row doesn't carry irrelevant
@@ -46,6 +60,7 @@ function scalarData(v: ComponentFormValues) {
     portType: v.type === "NIC_CARD" ? v.portType : null,
     portSpeed: v.type === "NIC_CARD" ? v.portSpeed : null,
     cardInterface: CARD_TYPES.has(v.type) ? v.cardInterface : null,
+    cardSize: SIZED_CARD_TYPES.has(v.type) ? v.cardSize : null,
     wattsRating: v.type === "POWER_SUPPLY" ? v.wattsRating : null,
     modular: v.type === "POWER_SUPPLY" ? v.modular : null,
     m2SlotCount: v.type === "NVME_RISER" ? v.m2SlotCount : null,

@@ -45,7 +45,7 @@ export default async function NewAssetPage({
         installedInId: null,
         pciSlot: null,
       },
-      select: { id: true, name: true, type: true, portCount: true, portType: true, portSpeed: true },
+      select: { id: true, name: true, type: true, portCount: true, portType: true, portSpeed: true, cardSize: true },
       orderBy: { name: "asc" },
     }),
   ]);

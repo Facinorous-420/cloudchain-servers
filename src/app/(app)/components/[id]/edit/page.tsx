@@ -53,6 +53,7 @@ export default async function EditComponentPage({
     portType: component.portType ?? "",
     portSpeed: component.portSpeed ?? "",
     cardInterface: component.cardInterface ?? "",
+    cardSize: component.cardSize ?? "",
     wattsRating: component.wattsRating?.toString() ?? "",
     modular: component.modular ?? false,
     m2SlotCount: component.m2SlotCount?.toString() ?? "",

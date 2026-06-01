@@ -60,6 +60,7 @@ export const componentSchema = z.object({
 
   // RAID_CONTROLLER / PCIE_CARD / NIC_CARD
   cardInterface: optionalText,
+  cardSize: optionalText,
 
   // POWER_SUPPLY
   wattsRating: optionalInt,

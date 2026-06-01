@@ -35,6 +35,12 @@ import {
 } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { MultiImageUpload, type ImageEntry } from "@/components/ui/multi-image-upload";
+import {
+  PCI_SIZES,
+  compatibleCardSizes,
+  cardFitsSlot,
+  allowedCardTypes,
+} from "@/lib/pci-sizes";
 
 export type AssetFormData = {
   id: string;
@@ -197,6 +203,7 @@ export type PciInventoryItem = {
   portCount?: number | null;
   portType?: string | null;
   portSpeed?: string | null;
+  cardSize?: string | null;
 };
 
 export function AssetForm({
@@ -1826,29 +1833,15 @@ function RamEditor({
   );
 }
 
-const PCI_SLOT_SIZES = ["x1", "x4", "x8", "x16", "M.2 2280", "M.2 2242", "OCP 3.0"];
+const PCI_TYPE_LABEL: Record<string, string> = {
+  NIC_CARD: "NIC Card",
+  GPU: "GPU / Video Card",
+  PCIE_CARD: "PCIe Card (other)",
+  RAID_CONTROLLER: "RAID Controller",
+  NVME_RISER: "NVMe Riser",
+};
 
-// PCIe size compatibility: a smaller card fits in a larger standard slot.
-// x16 slot accepts x16/x8/x4/x1; x8 accepts x8/x4/x1; etc.
-// M.2 2280 also accepts M.2 2242 (shorter cards fit in longer slots).
-const PCI_STD_ORDER = ["x1", "x4", "x8", "x16"];
-function compatibleCardSizes(slotSize: string): string[] {
-  const idx = PCI_STD_ORDER.indexOf(slotSize);
-  if (idx >= 0) return PCI_STD_ORDER.slice(0, idx + 1);
-  if (slotSize === "M.2 2280") return ["M.2 2280", "M.2 2242"];
-  return [slotSize];
-}
-
-const PCI_COMPONENT_TYPES: { value: string; label: string }[] = [
-  { value: "NIC_CARD", label: "NIC Card" },
-  { value: "GPU", label: "GPU / Video Card" },
-  { value: "PCIE_CARD", label: "PCIe Card (other)" },
-  { value: "RAID_CONTROLLER", label: "RAID Controller" },
-  { value: "NVME_RISER", label: "NVMe Riser" },
-];
-const PCI_TYPE_LABEL: Record<string, string> = Object.fromEntries(
-  PCI_COMPONENT_TYPES.map((t) => [t.value, t.label])
-);
+type RiserDriveRow = { name: string; capacityGB: string };
 
 type PanelDraft = {
   name: string;
@@ -1859,11 +1852,31 @@ type PanelDraft = {
   portType: string;
   portSpeed: string;
   cardInterface: string;
+  cardSize: string;
+  // NVMe riser only
+  m2SlotCount: string;
+  m2SlotSize: string;
+  drives: RiserDriveRow[];
 };
-const EMPTY_DRAFT: PanelDraft = {
-  name: "", type: "NIC_CARD", manufacturer: "", model: "",
-  portCount: "", portType: "ETHERNET", portSpeed: "", cardInterface: "",
-};
+// A fresh draft seeded to fit the given slot: type defaults to the first type
+// the slot family allows, cardSize to the slot's own size.
+function emptyDraft(slotSize: string): PanelDraft {
+  const types = allowedCardTypes(slotSize);
+  return {
+    name: "",
+    type: types[0] ?? "PCIE_CARD",
+    manufacturer: "",
+    model: "",
+    portCount: "",
+    portType: "ETHERNET",
+    portSpeed: "",
+    cardInterface: "",
+    cardSize: slotSize,
+    m2SlotCount: "",
+    m2SlotSize: "M.2 2280",
+    drives: [],
+  };
+}
 type PanelState = {
   slotIndex: number;
   mode: "inventory" | "new";
@@ -1895,7 +1908,27 @@ function PciSlotEditor({
   }
 
   function updateSize(i: number, size: string) {
-    onChange(slots.map((s, idx) => (idx === i ? { ...s, size } : s)));
+    // Changing the slot size invalidates any pending install (a card that fit
+    // the old size may not fit the new one), so clear the pending selection.
+    onChange(
+      slots.map((s, idx) =>
+        idx === i
+          ? {
+              ...s,
+              size,
+              pendingExistingComponentId: null,
+              pendingNewComponent: null,
+            }
+          : s,
+      ),
+    );
+    // If the install panel is open for this slot, reseed it so its type/size
+    // options and the create-new fields match the new slot size.
+    setPanel((p) =>
+      p && p.slotIndex === i
+        ? { ...p, pickId: "", draft: emptyDraft(size) }
+        : p,
+    );
   }
 
   function setPendingVacate(i: number) {
@@ -1916,20 +1949,16 @@ function PciSlotEditor({
   }
 
   function openPanel(i: number) {
-    const compatible = compatibleCardSizes(slots[i].size);
-    const compatibleInv = inventory.filter((c) => {
-      // We filter by size compatibility via cardInterface if it contains a standard size token
-      // Fall back to showing all if we can't determine size from free-text cardInterface
-      return true; // show all — user picks appropriate card
-    });
+    const slotSize = slots[i].size;
+    const compatibleInv = inventory.filter((c) =>
+      cardFitsSlot(c.cardSize, slotSize),
+    );
     setPanel({
       slotIndex: i,
       mode: compatibleInv.length > 0 ? "inventory" : "new",
       pickId: compatibleInv[0]?.id ?? "",
-      draft: { ...EMPTY_DRAFT },
+      draft: emptyDraft(slotSize),
     });
-    // suppress unused warning
-    void compatible;
   }
 
   function applyInventory() {
@@ -1946,6 +1975,16 @@ function PciSlotEditor({
     if (!panel || !panel.draft.name.trim()) return;
     const d = panel.draft;
     const portCountNum = d.portCount ? parseInt(d.portCount, 10) : null;
+    const isRiser = d.type === "NVME_RISER";
+    const m2 = d.m2SlotCount ? parseInt(d.m2SlotCount, 10) : null;
+    const riserDrives = isRiser
+      ? d.drives
+          .map((r) => ({
+            name: r.name.trim(),
+            capacityGB: r.capacityGB ? parseInt(r.capacityGB, 10) : NaN,
+          }))
+          .filter((r) => r.name !== "" && Number.isFinite(r.capacityGB) && r.capacityGB > 0)
+      : [];
     const draft: PciNewComponentDraft = {
       name: d.name.trim(),
       type: d.type,
@@ -1955,6 +1994,10 @@ function PciSlotEditor({
       portType: d.type === "NIC_CARD" && d.portType ? d.portType : null,
       portSpeed: d.portSpeed.trim() || null,
       cardInterface: d.cardInterface.trim() || null,
+      cardSize: d.cardSize || null,
+      m2SlotCount: isRiser && m2 != null && Number.isFinite(m2) && m2 > 0 ? m2 : null,
+      m2SlotSize: isRiser ? d.m2SlotSize || null : null,
+      drives: riserDrives.length > 0 ? riserDrives : undefined,
     };
     onChange(slots.map((s, i) =>
       i === panel.slotIndex
@@ -1992,8 +2035,8 @@ function PciSlotEditor({
                   value={slot.size}
                   onChange={(e) => updateSize(i, e.target.value)}
                 >
-                  {PCI_SLOT_SIZES.map((sz) => (
-                    <option key={sz} value={sz}>{sz}</option>
+                  {PCI_SIZES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
                 </Select>
               </Field>
@@ -2081,33 +2124,46 @@ function PciSlotEditor({
                   </div>
                 )}
 
-                {/* Inventory picker */}
-                {panel?.mode === "inventory" && inventory.length > 0 && (
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1">
-                      <Field label={`Compatible cards (slot ${i + 1} · ${slot.size})`}>
-                        <Select
-                          value={panel.pickId}
-                          onChange={(e) => setPanel((p) => p && { ...p, pickId: e.target.value })}
-                        >
-                          <option value="">— Select a component —</option>
-                          {inventory.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                              {c.portCount && c.portType
-                                ? ` · ${c.portCount}× ${c.portType.replace(/_/g, "+")} ${c.portSpeed ?? ""}`
-                                : ""}{" "}
-                              ({PCI_TYPE_LABEL[c.type] ?? c.type})
-                            </option>
-                          ))}
-                        </Select>
-                      </Field>
+                {/* Inventory picker — only cards that physically fit this slot */}
+                {panel?.mode === "inventory" && inventory.length > 0 && (() => {
+                  const fit = inventory.filter((c) =>
+                    cardFitsSlot(c.cardSize, slot.size),
+                  );
+                  return (
+                    <div className="flex items-end gap-3">
+                      <div className="flex-1">
+                        <Field label={`Compatible cards (slot ${i + 1} · ${slot.size})`}>
+                          {fit.length === 0 ? (
+                            <p className="text-[11px] text-faint">
+                              No in-stock cards fit a {slot.size} slot. Use
+                              &ldquo;Create new&rdquo; instead.
+                            </p>
+                          ) : (
+                            <Select
+                              value={panel.pickId}
+                              onChange={(e) => setPanel((p) => p && { ...p, pickId: e.target.value })}
+                            >
+                              <option value="">— Select a component —</option>
+                              {fit.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                  {c.cardSize ? ` · ${c.cardSize}` : ""}
+                                  {c.portCount && c.portType
+                                    ? ` · ${c.portCount}× ${c.portType.replace(/_/g, "+")} ${c.portSpeed ?? ""}`
+                                    : ""}{" "}
+                                  ({PCI_TYPE_LABEL[c.type] ?? c.type})
+                                </option>
+                              ))}
+                            </Select>
+                          )}
+                        </Field>
+                      </div>
+                      <Button type="button" variant="primary" onClick={applyInventory} disabled={!panel.pickId}>
+                        Install
+                      </Button>
                     </div>
-                    <Button type="button" variant="primary" onClick={applyInventory} disabled={!panel.pickId}>
-                      Install
-                    </Button>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Create new form */}
                 {panel?.mode === "new" && (
@@ -2125,8 +2181,8 @@ function PciSlotEditor({
                           value={panel.draft.type}
                           onChange={(e) => setPanel((p) => p && { ...p, draft: { ...p.draft, type: e.target.value } })}
                         >
-                          {PCI_COMPONENT_TYPES.map((t) => (
-                            <option key={t.value} value={t.value}>{t.label}</option>
+                          {allowedCardTypes(slot.size).map((t) => (
+                            <option key={t} value={t}>{PCI_TYPE_LABEL[t] ?? t}</option>
                           ))}
                         </Select>
                       </Field>
@@ -2176,7 +2232,7 @@ function PciSlotEditor({
                         </Field>
                       </div>
                     )}
-                    <div className="grid grid-cols-[1fr_auto] items-end gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <Field label="Card interface" hint='Physical PCIe interface, e.g. "PCIe 3.0 x8"'>
                         <TextInput
                           placeholder="PCIe 3.0 x8"
@@ -2184,6 +2240,33 @@ function PciSlotEditor({
                           onChange={(e) => setPanel((p) => p && { ...p, draft: { ...p.draft, cardInterface: e.target.value } })}
                         />
                       </Field>
+                      <Field
+                        label="Connector size"
+                        hint="Constrained to sizes that fit this slot."
+                      >
+                        <Select
+                          value={panel.draft.cardSize}
+                          onChange={(e) => setPanel((p) => p && { ...p, draft: { ...p.draft, cardSize: e.target.value } })}
+                        >
+                          {compatibleCardSizes(slot.size).map((sz) => (
+                            <option key={sz} value={sz}>{sz}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                    </div>
+
+                    {/* NVMe riser: define its M.2 slots and (optionally) the
+                        drives to create + mount into them on save. */}
+                    {panel.draft.type === "NVME_RISER" && (
+                      <RiserDraftFields
+                        draft={panel.draft}
+                        onChange={(patch) =>
+                          setPanel((p) => p && { ...p, draft: { ...p.draft, ...patch } })
+                        }
+                      />
+                    )}
+
+                    <div>
                       <Button type="button" variant="primary" onClick={applyNew} disabled={!panel.draft.name.trim()}>
                         Create &amp; add
                       </Button>
@@ -2200,6 +2283,103 @@ function PciSlotEditor({
         <Button type="button" variant="accent" onClick={addSlot}>
           Add PCIe slot
         </Button>
+      </div>
+    </div>
+  );
+}
+
+// Inline editor shown when the create-new card type is an NVMe riser: define its
+// M.2 slot count + size and optionally the drives to create + mount on save.
+function RiserDraftFields({
+  draft,
+  onChange,
+}: {
+  draft: PanelDraft;
+  onChange: (patch: Partial<PanelDraft>) => void;
+}) {
+  const count = draft.m2SlotCount ? parseInt(draft.m2SlotCount, 10) : 0;
+  const hasCount = Number.isFinite(count) && count > 0;
+  const canAdd = !hasCount || draft.drives.length < count;
+  const m2Sizes = PCI_SIZES.filter((s) => s.family === "M2");
+
+  function setDrive(idx: number, patch: Partial<RiserDriveRow>) {
+    onChange({
+      drives: draft.drives.map((d, i) => (i === idx ? { ...d, ...patch } : d)),
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-border/70 bg-bg/30 p-3">
+      <p className="text-[11px] font-black uppercase tracking-wide text-text-dim">
+        NVMe riser slots
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="M.2 slots" hint="How many M.2 slots this riser adds.">
+          <TextInput
+            type="number"
+            min={1}
+            placeholder="2"
+            value={draft.m2SlotCount}
+            onChange={(e) => onChange({ m2SlotCount: e.target.value })}
+          />
+        </Field>
+        <Field label="M.2 slot size">
+          <Select
+            value={draft.m2SlotSize}
+            onChange={(e) => onChange({ m2SlotSize: e.target.value })}
+          >
+            {m2Sizes.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-text-dim">
+            NVMe drives (optional — created &amp; mounted into the riser on save)
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => onChange({ drives: [...draft.drives, { name: "", capacityGB: "" }] })}
+            disabled={!canAdd}
+          >
+            + Add drive
+          </Button>
+        </div>
+        {draft.drives.length === 0 && (
+          <p className="text-[11px] text-faint">
+            None — you can also mount drives later from the riser&apos;s page.
+          </p>
+        )}
+        {draft.drives.map((d, idx) => (
+          <div key={idx} className="grid grid-cols-[1fr_8rem_auto] items-end gap-2">
+            <Field label={`Drive ${idx + 1} name`}>
+              <TextInput
+                placeholder='e.g. "Samsung 980 Pro"'
+                value={d.name}
+                onChange={(e) => setDrive(idx, { name: e.target.value })}
+              />
+            </Field>
+            <Field label="Capacity (GB)">
+              <TextInput
+                type="number"
+                min={1}
+                value={d.capacityGB}
+                onChange={(e) => setDrive(idx, { capacityGB: e.target.value })}
+              />
+            </Field>
+            <button
+              type="button"
+              onClick={() => onChange({ drives: draft.drives.filter((_, i) => i !== idx) })}
+              className="mb-1 shrink-0 px-2 text-faint hover:text-red-400"
+              title="Remove drive"
+            >
+              ×
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

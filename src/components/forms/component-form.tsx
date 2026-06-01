@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { PCI_SIZES } from "@/lib/pci-sizes";
 
 export type ComponentFormData = {
   id: string;
@@ -55,6 +56,7 @@ export type ComponentFormData = {
   portSpeed: string;
   // RAID / PCIe / NIC shared
   cardInterface: string;
+  cardSize: string;
   // PSU
   wattsRating: string;
   modular: boolean;
@@ -102,6 +104,7 @@ const EMPTY: ComponentFormData = {
   portType: "",
   portSpeed: "",
   cardInterface: "",
+  cardSize: "",
   wattsRating: "",
   modular: false,
   m2SlotCount: "",
@@ -163,8 +166,27 @@ export function ComponentForm({
   const isNic = type === "NIC_CARD";
   const hasCardInterface =
     type === "RAID_CONTROLLER" || type === "PCIE_CARD" || type === "NIC_CARD";
+  const isGpu = type === "GPU";
   const isPsu = type === "POWER_SUPPLY";
   const isRiser = type === "NVME_RISER";
+  const hasCardSize = hasCardInterface || isGpu || isRiser;
+
+  const cardSizeField = (
+    <Field
+      label="Connector size"
+      htmlFor="cardSize"
+      hint="Physical slot this card needs — used to match it to a compatible PCIe/M.2 slot."
+    >
+      <Select id="cardSize" name="cardSize" defaultValue={data.cardSize}>
+        <option value="">— Unspecified —</option>
+        {PCI_SIZES.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
+        ))}
+      </Select>
+    </Field>
+  );
 
   const field = (
     name: StringKey,
@@ -329,9 +351,23 @@ export function ComponentForm({
 
           {hasCardInterface && (
             <FieldSet legend="Card interface">
-              {field("cardInterface", "PCIe interface", "text", {
-                hint: 'e.g. "PCIe 3.0 x8".',
-              })}
+              <div className="grid grid-cols-2 gap-4">
+                {field("cardInterface", "PCIe interface", "text", {
+                  hint: 'e.g. "PCIe 3.0 x8".',
+                })}
+                {cardSizeField}
+              </div>
+            </FieldSet>
+          )}
+
+          {isGpu && (
+            <FieldSet legend="Card">
+              <div className="grid grid-cols-2 gap-4">
+                {field("cardInterface", "PCIe interface", "text", {
+                  hint: 'e.g. "PCIe 4.0 x16".',
+                })}
+                {cardSizeField}
+              </div>
             </FieldSet>
           )}
 
@@ -344,6 +380,7 @@ export function ComponentForm({
                 {field("cardInterface", "PCIe interface", "text", {
                   hint: 'e.g. "PCIe 3.0 x8".',
                 })}
+                {cardSizeField}
               </div>
             </FieldSet>
           )}

@@ -33,6 +33,13 @@ export const inlineRamSchema = z.object({
 export type InlineRamInput = z.infer<typeof inlineRamSchema>;
 export const inlineRamsSchema = z.array(inlineRamSchema);
 
+// A drive created inline alongside a new NVMe riser, dropped into its bays in order.
+export const riserDriveDraftSchema = z.object({
+  name: z.string().trim().min(1, "Required"),
+  capacityGB: z.number().int().positive(),
+});
+export type RiserDriveDraft = z.infer<typeof riserDriveDraftSchema>;
+
 // Definition for a new PCIe component created inline from the slot editor
 export const pciNewComponentDraftSchema = z.object({
   name: z.string().trim().min(1, "Required"),
@@ -43,6 +50,13 @@ export const pciNewComponentDraftSchema = z.object({
   portType: z.string().nullable().optional(),
   portSpeed: z.string().nullable().optional(),
   cardInterface: z.string().nullable().optional(),
+  // Structured connector size (x8, M.2 2280…) for slot-fit checks.
+  cardSize: z.string().nullable().optional(),
+  // NVME_RISER-only: how many M.2 slots the riser adds, their size label, and
+  // any NVMe drives to create + mount into those slots on save.
+  m2SlotCount: z.number().int().positive().nullable().optional(),
+  m2SlotSize: z.string().nullable().optional(),
+  drives: z.array(riserDriveDraftSchema).optional(),
 });
 export type PciNewComponentDraft = z.infer<typeof pciNewComponentDraftSchema>;
 

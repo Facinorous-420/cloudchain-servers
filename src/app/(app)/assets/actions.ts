@@ -7,7 +7,15 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { PRESET_IMAGE_PREFIX } from "@/lib/presets";
-import { Prisma, type ComponentType, type PortType } from "@/generated/prisma";
+import {
+  Prisma,
+  type ComponentType,
+  type PortType,
+  type DriveKind,
+  type DriveSize,
+  type LifecycleState,
+} from "@/generated/prisma";
+import type { PciNewComponentDraft } from "@/lib/schemas/inline-components";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/require-user";
 import type { FormState, CascadeConfirmRequired } from "@/lib/form-state";
@@ -225,6 +233,61 @@ async function materializePresetImages(gallery: ImageEntry[]): Promise<ImageEntr
   return out;
 }
 
+// Create a component for a pending PCIe-slot install. For an NVMe riser this
+// also creates its M.2 bay zone and any drives the user defined inline, mounting
+// them into the riser's slots. Returns the new component id (to link the slot).
+async function createPciComponentWithExtras(
+  client: Prisma.TransactionClient,
+  hostAssetId: string,
+  nc: PciNewComponentDraft,
+): Promise<string> {
+  const isRiser = nc.type === "NVME_RISER";
+  const newComp = await client.component.create({
+    data: {
+      name: nc.name,
+      type: nc.type as ComponentType,
+      manufacturer: nc.manufacturer ?? null,
+      model: nc.model ?? null,
+      portCount: nc.portCount ?? null,
+      portType: (nc.portType ?? null) as PortType | null,
+      portSpeed: nc.portSpeed ?? null,
+      cardInterface: nc.cardInterface ?? null,
+      cardSize: nc.cardSize ?? null,
+      m2SlotCount: isRiser ? nc.m2SlotCount ?? null : null,
+      installedInId: hostAssetId,
+    },
+  });
+
+  if (isRiser && nc.m2SlotCount && nc.m2SlotCount > 0) {
+    const zone = await client.bayZone.create({
+      data: {
+        componentId: newComp.id,
+        name: nc.m2SlotSize ? `${nc.m2SlotSize} slots` : "M.2 slots",
+        faceSide: "FRONT",
+        driveSize: "M2",
+        bayCount: nc.m2SlotCount,
+        sortOrder: 0,
+      },
+    });
+    const drives = (nc.drives ?? []).slice(0, nc.m2SlotCount);
+    if (drives.length > 0) {
+      await client.drive.createMany({
+        data: drives.map((d, i) => ({
+          name: d.name,
+          kind: "NVME" as DriveKind,
+          size: "M2" as DriveSize,
+          capacityGB: d.capacityGB,
+          state: "IN_USE" as LifecycleState,
+          installedInId: hostAssetId,
+          bayZoneId: zone.id,
+          bayNumber: i + 1,
+        })),
+      });
+    }
+  }
+  return newComp.id;
+}
+
 function isUniqueCodenameError(error: unknown): boolean {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -386,23 +449,14 @@ export async function createAsset(
             }),
           ]);
         } else if (slot.pendingNewComponent) {
-          const nc = slot.pendingNewComponent;
-          const newComp = await prisma.component.create({
-            data: {
-              name: nc.name,
-              type: nc.type as ComponentType,
-              manufacturer: nc.manufacturer ?? null,
-              model: nc.model ?? null,
-              portCount: nc.portCount ?? null,
-              portType: (nc.portType ?? null) as PortType | null,
-              portSpeed: nc.portSpeed ?? null,
-              cardInterface: nc.cardInterface ?? null,
-              installedInId: created.id,
-            },
-          });
+          const newCompId = await createPciComponentWithExtras(
+            prisma,
+            created.id,
+            slot.pendingNewComponent,
+          );
           await prisma.pciSlot.update({
             where: { id: dbSlot.id },
-            data: { occupiedByComponentId: newComp.id },
+            data: { occupiedByComponentId: newCompId },
           });
         }
       }
@@ -728,23 +782,14 @@ export async function updateAsset(
                 data: { installedInId: id },
               });
             } else if (slot.pendingNewComponent) {
-              const nc = slot.pendingNewComponent;
-              const newComp = await tx.component.create({
-                data: {
-                  name: nc.name,
-                  type: nc.type as ComponentType,
-                  manufacturer: nc.manufacturer ?? null,
-                  model: nc.model ?? null,
-                  portCount: nc.portCount ?? null,
-                  portType: (nc.portType ?? null) as PortType | null,
-                  portSpeed: nc.portSpeed ?? null,
-                  cardInterface: nc.cardInterface ?? null,
-                  installedInId: id,
-                },
-              });
+              const newCompId = await createPciComponentWithExtras(
+                tx,
+                id,
+                slot.pendingNewComponent,
+              );
               await tx.pciSlot.update({
                 where: { id: slotId },
-                data: { occupiedByComponentId: newComp.id },
+                data: { occupiedByComponentId: newCompId },
               });
             }
           }
