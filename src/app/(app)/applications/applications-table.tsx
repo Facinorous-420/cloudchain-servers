@@ -55,6 +55,7 @@ export function ApplicationsTable({
     {
       key: "type",
       header: "Type",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.type,
       render: (r) => <Badge>{enumLabel(r.type)}</Badge>,
@@ -62,6 +63,7 @@ export function ApplicationsTable({
     {
       key: "host",
       header: "Host",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.hostCodename,
       render: (r) => (
@@ -76,6 +78,7 @@ export function ApplicationsTable({
     {
       key: "operatingSystem",
       header: "OS",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.operatingSystem ?? "",
       render: (r) =>

@@ -75,6 +75,7 @@ export function ConsumablesTable({
     {
       key: "type",
       header: "Type",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.type ?? "",
       render: (r) => r.type ?? <span className="text-faint">—</span>,
@@ -89,6 +90,7 @@ export function ConsumablesTable({
     {
       key: "location",
       header: "Location",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.location ?? "",
       render: (r) => r.location ?? <span className="text-faint">—</span>,

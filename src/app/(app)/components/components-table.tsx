@@ -79,6 +79,7 @@ export function ComponentsTable({
     {
       key: "type",
       header: "Type",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.type,
       render: (r) => <Badge>{enumLabel(r.type)}</Badge>,
@@ -86,6 +87,7 @@ export function ComponentsTable({
     {
       key: "quantity",
       header: "Qty",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.quantity,
       render: (r) => r.quantity,
@@ -93,6 +95,7 @@ export function ComponentsTable({
     {
       key: "installedIn",
       header: "Installed in",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.installedIn ?? "",
       render: (r) =>

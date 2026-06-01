@@ -68,6 +68,7 @@ export function BatteriesTable({ batteries }: { batteries: BatteryRow[] }) {
     {
       key: "manufacturer",
       header: "Manufacturer",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.manufacturer ?? "",
       render: (r) => r.manufacturer ?? <span className="text-faint">—</span>,
@@ -75,6 +76,7 @@ export function BatteriesTable({ batteries }: { batteries: BatteryRow[] }) {
     {
       key: "quantity",
       header: "Qty",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.quantity,
       render: (r) => r.quantity,
@@ -82,6 +84,7 @@ export function BatteriesTable({ batteries }: { batteries: BatteryRow[] }) {
     {
       key: "installedIn",
       header: "Installed in",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.installedIn ?? "",
       render: (r) => r.installedIn ?? <span className="text-faint">—</span>,

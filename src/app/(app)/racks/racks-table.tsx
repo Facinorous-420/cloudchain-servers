@@ -65,6 +65,7 @@ export function RacksTable({ racks }: { racks: RackRow[] }) {
     {
       key: "manufacturer",
       header: "Manufacturer",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.manufacturer ?? "",
       render: (r) => r.manufacturer ?? <span className="text-faint">—</span>,

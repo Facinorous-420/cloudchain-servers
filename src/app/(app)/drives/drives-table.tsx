@@ -93,6 +93,7 @@ export function DrivesTable({ drives }: { drives: DriveRow[] }) {
     {
       key: "kind",
       header: "Kind",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.kind,
       render: (r) => <KindBadge kind={r.kind} />,
@@ -110,6 +111,7 @@ export function DrivesTable({ drives }: { drives: DriveRow[] }) {
     {
       key: "priceTB",
       header: "$/TB",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) =>
         r.purchasePrice != null && r.capacityGB > 0
@@ -128,6 +130,7 @@ export function DrivesTable({ drives }: { drives: DriveRow[] }) {
     {
       key: "installedIn",
       header: "Installed in",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.installedIn ?? "",
       render: (r) => {

@@ -92,6 +92,7 @@ export function AssetsTable({
     {
       key: "name",
       header: "Name",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.name,
       render: (r) => r.name,
@@ -106,6 +107,7 @@ export function AssetsTable({
     {
       key: "location",
       header: "Location",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.location,
       render: (r) => enumLabel(r.location),
@@ -113,6 +115,7 @@ export function AssetsTable({
     {
       key: "rackUnits",
       header: "U",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.rackUnits ?? 0,
       render: (r) => r.rackUnits ?? "—",

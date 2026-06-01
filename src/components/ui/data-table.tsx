@@ -10,6 +10,10 @@ export type Column<T> = {
   sortable?: boolean;
   render: (row: T) => ReactNode;
   sortValue?: (row: T) => string | number;
+  /** Hide this column below the `md` breakpoint to keep list pages within the
+   *  viewport on phones (no horizontal scroll). Reserve for secondary columns —
+   *  the identifying column and actions should stay visible. */
+  hideOnMobile?: boolean;
 };
 
 export type SortState = { key: string; dir: "asc" | "desc" };
@@ -167,6 +171,8 @@ export function DataTable<T>({
                 key={col.key}
                 onClick={col.sortable ? () => toggleSort(col.key) : undefined}
                 className={`px-3.5 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-text-dim ${
+                  col.hideOnMobile ? "hidden md:table-cell" : ""
+                } ${
                   col.sortable
                     ? "cursor-pointer select-none transition-colors hover:text-text"
                     : ""
@@ -222,7 +228,12 @@ export function DataTable<T>({
                   </td>
                 )}
                 {columns.map((col) => (
-                  <td key={col.key} className="px-3.5 py-2.5 text-text">
+                  <td
+                    key={col.key}
+                    className={`px-3.5 py-2.5 text-text ${
+                      col.hideOnMobile ? "hidden md:table-cell" : ""
+                    }`}
+                  >
                     {col.render(row)}
                   </td>
                 ))}

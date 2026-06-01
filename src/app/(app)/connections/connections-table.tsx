@@ -66,6 +66,7 @@ export function ConnectionsTable({
     {
       key: "type",
       header: "Type",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.type,
       render: (r) => <Badge tone="accent">{enumLabel(r.type)}</Badge>,
@@ -110,6 +111,7 @@ export function ConnectionsTable({
     {
       key: "cable",
       header: "Cable",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.cableCategory ?? "",
       render: (r) => (
@@ -129,6 +131,7 @@ export function ConnectionsTable({
     {
       key: "length",
       header: "Length (ft)",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) =>
         r.cableLengthFeet ?? r.estimatedCableLengthFeet ?? 0,

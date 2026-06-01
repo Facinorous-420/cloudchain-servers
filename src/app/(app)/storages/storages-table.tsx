@@ -65,6 +65,7 @@ export function StoragesTable({ storages }: { storages: StorageRow[] }) {
     {
       key: "notes",
       header: "Notes",
+      hideOnMobile: true,
       render: (r) => r.notes ?? <span className="text-faint">—</span>,
     },
     {

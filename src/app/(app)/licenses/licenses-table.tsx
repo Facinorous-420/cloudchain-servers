@@ -64,6 +64,7 @@ export function LicensesTable({ licenses }: { licenses: LicenseRow[] }) {
     {
       key: "type",
       header: "Type",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.type ?? "",
       render: (r) => dim(r.type),
@@ -71,6 +72,7 @@ export function LicensesTable({ licenses }: { licenses: LicenseRow[] }) {
     {
       key: "seats",
       header: "Seats",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.seats ?? 0,
       render: (r) => (r.seats == null ? <span className="text-faint">—</span> : r.seats),
@@ -85,6 +87,7 @@ export function LicensesTable({ licenses }: { licenses: LicenseRow[] }) {
     {
       key: "assignmentCount",
       header: "Assigned",
+      hideOnMobile: true,
       sortable: true,
       sortValue: (r) => r.assignmentCount,
       render: (r) => `${r.assignmentCount} asset${r.assignmentCount === 1 ? "" : "s"}`,
