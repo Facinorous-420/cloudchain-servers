@@ -1,8 +1,12 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+import { mkdir, copyFile } from "node:fs/promises";
+import path from "node:path";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { PRESET_IMAGE_PREFIX } from "@/lib/presets";
 import { Prisma, type ComponentType, type PortType } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/require-user";
@@ -180,6 +184,47 @@ function parseJsonArray<T>(
   }
 }
 
+const PRESETS_ROOT = path.join(process.cwd(), "presets");
+const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
+const PRESET_IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif"]);
+
+// Gallery entries seeded from a preset point at /api/preset-image (a read-only
+// file under presets/). Copy each into public/uploads so the saved asset owns a
+// real, editable image like any user upload. Non-preset paths pass through
+// unchanged; any entry that can't be copied is dropped rather than failing save.
+async function materializePresetImages(gallery: ImageEntry[]): Promise<ImageEntry[]> {
+  const out: ImageEntry[] = [];
+  let madeDir = false;
+  for (const entry of gallery) {
+    if (!entry.path.startsWith(PRESET_IMAGE_PREFIX)) {
+      out.push(entry);
+      continue;
+    }
+    try {
+      const src = decodeURIComponent(entry.path.slice(PRESET_IMAGE_PREFIX.length));
+      const resolved = path.resolve(PRESETS_ROOT, src);
+      if (
+        resolved !== PRESETS_ROOT &&
+        !resolved.startsWith(PRESETS_ROOT + path.sep)
+      ) {
+        continue; // path traversal — skip
+      }
+      const ext = path.extname(resolved).slice(1).toLowerCase();
+      if (!PRESET_IMAGE_EXTS.has(ext)) continue;
+      if (!madeDir) {
+        await mkdir(UPLOADS_DIR, { recursive: true });
+        madeDir = true;
+      }
+      const filename = `${randomUUID()}.${ext}`;
+      await copyFile(resolved, path.join(UPLOADS_DIR, filename));
+      out.push({ path: `/uploads/${filename}`, isMain: entry.isMain });
+    } catch {
+      // Source missing or unreadable — skip this image.
+    }
+  }
+  return out;
+}
+
 function isUniqueCodenameError(error: unknown): boolean {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -260,7 +305,7 @@ export async function createAsset(
     ? [...cpus.map(cpuComponentData), ...rams.map(ramComponentData)]
     : [];
 
-  const imageGallery = parseImageGallery(formData);
+  const imageGallery = await materializePresetImages(parseImageGallery(formData));
   const hasPendingPciInstalls =
     isServerLike &&
     pciSlots.some((s) => s.pendingExistingComponentId || s.pendingNewComponent);
@@ -424,7 +469,7 @@ export async function updateAsset(
   const values = parsed.data;
   const isServer = values.category === "SERVER";
   const isServerLike = isServer || values.category === "NUC";
-  const imageGallery = parseImageGallery(formData);
+  const imageGallery = await materializePresetImages(parseImageGallery(formData));
 
   // Cascade prompt: when marking SOLD/JUNKED for the first time in this
   // submit, check whether nested items need the same treatment.

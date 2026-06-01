@@ -188,7 +188,13 @@ export default async function NewAssetPage({
       psus: [],
     };
   } else if (selectedPreset) {
-    prefill = { id: "", ...assetPresetToFormData(selectedPreset.data) };
+    prefill = {
+      id: "",
+      ...assetPresetToFormData(selectedPreset.data, {
+        source: selectedPreset.source,
+        id: selectedPreset.id,
+      }),
+    };
   } else if (categoryParam) {
     // "Start from scratch" from the preset picker — category pre-selected.
     prefill = {

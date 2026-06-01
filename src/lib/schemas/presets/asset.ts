@@ -46,6 +46,9 @@ export const assetPresetSchema = z.object({
   modelNumber: z.string().optional(),
   tags: z.array(z.string()).optional(),
   thumbnail: z.string().optional(),
+  // Optional gallery (paths relative to the preset folder, e.g. "images/front.png").
+  // When omitted, the single `thumbnail` image is used as the gallery.
+  images: z.array(z.string()).optional(),
 
   formFactor: z.enum(FORM_FACTORS),
   heightInches: z.number().optional(),

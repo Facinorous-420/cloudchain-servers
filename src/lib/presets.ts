@@ -33,6 +33,13 @@ function thumbnailUrl(source: "system" | "custom", entityType: string, folder: s
   return `/api/preset-image?src=${encodeURIComponent(src)}`;
 }
 
+// Reference identifying a parsed preset on disk, used to resolve its images.
+export type PresetRef = { source: "system" | "custom"; id: string };
+
+// Marker prefix for gallery entries that still point at a preset image on disk.
+// On asset save these are copied into public/uploads (see materializePresetImages).
+export const PRESET_IMAGE_PREFIX = "/api/preset-image?src=";
+
 async function readEntityDir<T extends PresetEntityType>(
   base: string,
   source: "system" | "custom",
@@ -133,9 +140,25 @@ export async function loadPresetMeta(entityType: PresetEntityType): Promise<Pres
 
 // Maps a validated asset preset to the string-value shape AssetForm expects.
 // Instance-specific fields (codename, serial, acquisition) are left blank.
-export function assetPresetToFormData(preset: AssetPreset): Omit<AssetFormData, "id"> {
+export function assetPresetToFormData(
+  preset: AssetPreset,
+  presetRef?: PresetRef,
+): Omit<AssetFormData, "id"> {
   const str = (v: number | undefined): string => (v != null ? String(v) : "");
   const bool = (v: boolean | undefined): boolean => v ?? false;
+
+  // Seed the image gallery from the preset's images (or its single thumbnail).
+  // Entries point at /api/preset-image; they are copied into uploads on save.
+  const presetImages = preset.images ?? (preset.thumbnail ? [preset.thumbnail] : []);
+  const imageGallery =
+    presetRef && presetImages.length > 0
+      ? JSON.stringify(
+          presetImages.map((rel, i) => ({
+            path: thumbnailUrl(presetRef.source, "assets", presetRef.id, rel),
+            isMain: i === 0,
+          })),
+        )
+      : "[]";
 
   const bayZones: BayZoneInput[] = (preset.bayZones ?? []).map((z, i) => ({
     name: z.name,
@@ -177,7 +200,7 @@ export function assetPresetToFormData(preset: AssetPreset): Omit<AssetFormData, 
     soldDate: "",
     soldPrice: "",
     notes: "",
-    imageGallery: "[]",
+    imageGallery,
     storageId: "",
     warrantyEndDate: "",
     biosVersion: "",
