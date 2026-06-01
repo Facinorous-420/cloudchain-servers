@@ -104,6 +104,11 @@ export type DiagramAsset = {
     portType: (typeof PORT_TYPES)[number];
     portSpeed: string | null;
     side: string;
+    // faceplate-editor layout overrides (issue 5)
+    face?: string | null;
+    rows?: number | null;
+    columns?: number | null;
+    hiddenPorts?: number[] | null;
     // port numbers (1-based) that have a Connection on them (bEnd for patch panels = front)
     connectedPorts: number[];
     // patch panels only: aEnd connections = rear/permanent side
@@ -117,6 +122,10 @@ export type DiagramAsset = {
     batteryBacked: boolean;
     surgeProtected: boolean;
     side: string;
+    face?: string | null;
+    rows?: number | null;
+    columns?: number | null;
+    hiddenPorts?: number[] | null;
     // outlet numbers (1-based) that have a Connection on them
     connectedOutlets: number[];
   }[];

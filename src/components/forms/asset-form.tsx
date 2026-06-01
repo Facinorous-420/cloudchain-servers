@@ -731,6 +731,14 @@ export function AssetForm({
               {err("portGroups") && (
                 <p className="text-xs text-red-400">{err("portGroups")}</p>
               )}
+              {portGroups.length > 0 && (
+                <div className="mt-3">
+                  <p className="mb-1.5 text-[11px] font-bold text-text-dim">
+                    Faceplate preview
+                  </p>
+                  <FaceplatePreview portGroups={portGroups} defaultFace="FRONT" />
+                </div>
+              )}
             </FieldSet>
           )}
 
@@ -785,6 +793,14 @@ export function AssetForm({
               />
               {err("outletGroups") && (
                 <p className="text-xs text-red-400">{err("outletGroups")}</p>
+              )}
+              {outletGroups.length > 0 && (
+                <div className="mt-3">
+                  <p className="mb-1.5 text-[11px] font-bold text-text-dim">
+                    Faceplate preview
+                  </p>
+                  <FaceplatePreview outletGroups={outletGroups} defaultFace="REAR" />
+                </div>
               )}
             </FieldSet>
           )}
@@ -1301,6 +1317,239 @@ function BayZoneEditor({
   );
 }
 
+// Faceplate layout controls shared by the port- and outlet-group editors:
+// which face the strip renders on, its rows × columns shape, and per-port
+// show/hide toggles. All optional — leaving them blank keeps the default render.
+function FaceplateLayoutControls({
+  count,
+  face,
+  rows,
+  columns,
+  hidden,
+  onChange,
+}: {
+  count: number;
+  face?: string | null;
+  rows?: number | null;
+  columns?: number | null;
+  hidden?: number[] | null;
+  onChange: (patch: {
+    face?: string | null;
+    rows?: number | null;
+    columns?: number | null;
+    hiddenPorts?: number[] | null;
+  }) => void;
+}) {
+  const [showPorts, setShowPorts] = useState(false);
+  const hiddenSet = new Set(hidden ?? []);
+
+  function togglePort(n: number) {
+    const next = new Set(hiddenSet);
+    if (next.has(n)) next.delete(n);
+    else next.add(n);
+    onChange({
+      hiddenPorts: next.size ? Array.from(next).sort((a, b) => a - b) : null,
+    });
+  }
+  const numOrNull = (v: string) => (v === "" ? null : Number(v) || null);
+
+  return (
+    <div className="col-span-full flex flex-col gap-2 border-t border-border/50 pt-2">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Face">
+          <Select
+            className="w-28"
+            value={face ?? ""}
+            onChange={(e) => onChange({ face: e.target.value || null })}
+          >
+            <option value="">Default</option>
+            <option value="FRONT">Front</option>
+            <option value="REAR">Rear</option>
+          </Select>
+        </Field>
+        <Field label="Rows">
+          <TextInput
+            type="number"
+            min={1}
+            className="w-20"
+            placeholder="auto"
+            value={rows ?? ""}
+            onChange={(e) => onChange({ rows: numOrNull(e.target.value) })}
+          />
+        </Field>
+        <Field label="Columns">
+          <TextInput
+            type="number"
+            min={1}
+            className="w-20"
+            placeholder="auto"
+            value={columns ?? ""}
+            onChange={(e) => onChange({ columns: numOrNull(e.target.value) })}
+          />
+        </Field>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setShowPorts((v) => !v)}
+        >
+          {showPorts ? "Done" : "Show / hide ports"}
+          {hiddenSet.size > 0 ? ` (${hiddenSet.size} hidden)` : ""}
+        </Button>
+      </div>
+      {showPorts && count > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {Array.from({ length: count }, (_, i) => i + 1).map((n) => {
+            const isHidden = hiddenSet.has(n);
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => togglePort(n)}
+                title={isHidden ? "Hidden — click to show" : "Visible — click to hide"}
+                className={`h-6 w-7 rounded-[3px] border text-[10px] font-bold ${
+                  isHidden
+                    ? "border-border bg-panel-2 text-faint line-through"
+                    : "border-accent/50 bg-accent/15 text-accent"
+                }`}
+              >
+                {n}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Lay visible slot numbers (1..count minus hidden) into rows using the same
+// rules as the diagram's PortGrid, for the live faceplate preview.
+function previewRows(
+  count: number,
+  rows?: number | null,
+  columns?: number | null,
+  hidden?: number[] | null,
+): number[][] {
+  const hiddenSet = new Set(hidden ?? []);
+  const slots = Array.from({ length: count }, (_, i) => i + 1).filter(
+    (n) => !hiddenSet.has(n),
+  );
+  if (slots.length === 0) return [];
+  const per =
+    columns && columns > 0
+      ? columns
+      : rows && rows > 0
+        ? Math.ceil(slots.length / rows)
+        : Math.ceil(slots.length / 2);
+  const out: number[][] = [];
+  for (let i = 0; i < slots.length; i += per) out.push(slots.slice(i, i + per));
+  return out;
+}
+
+function PreviewGroup({
+  label,
+  count,
+  rows,
+  columns,
+  hidden,
+  tone,
+}: {
+  label: string;
+  count: number;
+  rows?: number | null;
+  columns?: number | null;
+  hidden?: number[] | null;
+  tone: "port" | "outlet";
+}) {
+  const grid = previewRows(count, rows, columns, hidden);
+  return (
+    <div>
+      <p className="mb-0.5 truncate text-[9px] font-bold uppercase tracking-wide text-text-dim">
+        {label}
+      </p>
+      <div className="flex flex-col gap-[2px]">
+        {grid.map((row, ri) => (
+          <div key={ri} className="flex gap-[2px]">
+            {row.map((n) => (
+              <span
+                key={n}
+                title={`${n}`}
+                className={`inline-block h-3 w-4 rounded-[2px] border ${
+                  tone === "outlet"
+                    ? "border-cat-ups/50 bg-cat-ups/15"
+                    : "border-accent/50 bg-accent/15"
+                }`}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Live faceplate preview reflecting each group's face, rows×columns and hidden
+// ports — mirrors how the rack diagram will render the device.
+function FaceplatePreview({
+  portGroups,
+  outletGroups,
+  defaultFace,
+}: {
+  portGroups?: PortGroupInput[];
+  outletGroups?: OutletGroupInput[];
+  defaultFace: "FRONT" | "REAR";
+}) {
+  const faces: ("FRONT" | "REAR")[] = ["FRONT", "REAR"];
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {faces.map((face) => {
+        const ports = (portGroups ?? []).filter(
+          (g) => (g.face ?? defaultFace) === face,
+        );
+        const outlets = (outletGroups ?? []).filter(
+          (g) => (g.face ?? defaultFace) === face,
+        );
+        const empty = ports.length === 0 && outlets.length === 0;
+        return (
+          <div
+            key={face}
+            className="rounded-md border border-border bg-[#0a0d12] p-3"
+          >
+            <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-accent">
+              {face} face
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {ports.map((g, i) => (
+                <PreviewGroup
+                  key={`p${i}`}
+                  label={g.name || PORT_TYPE_LABELS[g.portType]}
+                  count={g.portCount}
+                  rows={g.rows}
+                  columns={g.columns}
+                  hidden={g.hiddenPorts}
+                  tone="port"
+                />
+              ))}
+              {outlets.map((g, i) => (
+                <PreviewGroup
+                  key={`o${i}`}
+                  label={g.name || g.outletType || "Outlets"}
+                  count={g.outletCount}
+                  rows={g.rows}
+                  columns={g.columns}
+                  hidden={g.hiddenPorts}
+                  tone="outlet"
+                />
+              ))}
+              {empty && <p className="text-[10px] text-faint">— nothing on this face —</p>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PortGroupEditor({
   groups,
   onChange,
@@ -1413,6 +1662,14 @@ function PortGroupEditor({
           <Button type="button" variant="secondary" onClick={() => remove(i)}>
             Remove
           </Button>
+          <FaceplateLayoutControls
+            count={group.portCount}
+            face={group.face}
+            rows={group.rows}
+            columns={group.columns}
+            hidden={group.hiddenPorts}
+            onChange={(patch) => update(i, patch as Partial<PortGroupInput>)}
+          />
         </div>
       ))}
       <div>
@@ -1530,6 +1787,14 @@ function OutletGroupEditor({
           <Button type="button" variant="secondary" onClick={() => remove(i)}>
             Remove
           </Button>
+          <FaceplateLayoutControls
+            count={group.outletCount}
+            face={group.face}
+            rows={group.rows}
+            columns={group.columns}
+            hidden={group.hiddenPorts}
+            onChange={(patch) => update(i, patch as Partial<OutletGroupInput>)}
+          />
         </div>
       ))}
       <div>

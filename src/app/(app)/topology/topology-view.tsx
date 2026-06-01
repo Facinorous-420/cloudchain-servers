@@ -1215,6 +1215,9 @@ function AssetFaceContent({
                     count={g.portCount}
                     connectedPorts={g.connectedPorts}
                     portType={g.portType}
+                    rows={g.rows}
+                    columns={g.columns}
+                    hidden={g.hiddenPorts}
                     heightU={asset.rackUnits ?? 1}
                     onInspect={onInspect}
                   />
@@ -1225,6 +1228,9 @@ function AssetFaceContent({
                     count={g.portCount}
                     connectedPorts={g.connectedRearPorts ?? []}
                     portType={g.portType}
+                    rows={g.rows}
+                    columns={g.columns}
+                    hidden={g.hiddenPorts}
                     heightU={asset.rackUnits ?? 1}
                     onInspect={onInspect}
                   />
@@ -1247,6 +1253,9 @@ function AssetFaceContent({
                 count={g.portCount}
                 connectedPorts={g.connectedPorts}
                 portType={g.portType}
+                rows={g.rows}
+                columns={g.columns}
+                hidden={g.hiddenPorts}
                 heightU={asset.rackUnits ?? 1}
                 onInspect={onInspect}
               />
@@ -1263,9 +1272,12 @@ function AssetFaceContent({
     ) {
       if (asset.portGroups.length === 0)
         return <PlainLabel>NO PORTS DEFINED</PlainLabel>;
-      const leftGroups   = asset.portGroups.filter((g) => g.side === "LEFT" || !g.side);
-      const centerGroups = asset.portGroups.filter((g) => g.side === "CENTER");
-      const rightGroups  = asset.portGroups.filter((g) => g.side === "RIGHT");
+      // Honor the faceplate editor's per-group face: only front-face (or
+      // unassigned) groups render here; REAR groups render on the rear face.
+      const frontGroups  = asset.portGroups.filter((g) => (g.face ?? "FRONT") === "FRONT");
+      const leftGroups   = frontGroups.filter((g) => g.side === "LEFT" || !g.side);
+      const centerGroups = frontGroups.filter((g) => g.side === "CENTER");
+      const rightGroups  = frontGroups.filter((g) => g.side === "RIGHT");
       const renderGroup = (g: typeof asset.portGroups[number]) => (
         <Zone
           key={g.id}
@@ -1276,6 +1288,9 @@ function AssetFaceContent({
             count={g.portCount}
             connectedPorts={g.connectedPorts}
             portType={g.portType}
+            rows={g.rows}
+            columns={g.columns}
+            hidden={g.hiddenPorts}
             heightU={asset.rackUnits ?? 1}
             onInspect={onInspect}
           />
@@ -1354,6 +1369,9 @@ function AssetFaceContent({
                       count={g.portCount}
                       connectedPorts={g.connectedPorts}
                       portType={g.portType}
+                    rows={g.rows}
+                    columns={g.columns}
+                    hidden={g.hiddenPorts}
                       heightU={asset.rackUnits ?? 1}
                       onInspect={onInspect}
                     />
@@ -1391,6 +1409,9 @@ function AssetFaceContent({
                     count={g.portCount}
                     connectedPorts={g.connectedPorts}
                     portType={g.portType}
+                    rows={g.rows}
+                    columns={g.columns}
+                    hidden={g.hiddenPorts}
                     heightU={asset.rackUnits ?? 1}
                     onInspect={onInspect}
                   />
@@ -1496,6 +1517,9 @@ function AssetFaceContent({
               count={g.portCount}
               connectedPorts={g.connectedRearPorts ?? []}
               portType={g.portType}
+              rows={g.rows}
+              columns={g.columns}
+              hidden={g.hiddenPorts}
               heightU={asset.rackUnits ?? 1}
               onInspect={onInspect}
             />
@@ -1504,19 +1528,41 @@ function AssetFaceContent({
       </>
     );
   }
-  // For SWITCH, GATEWAY, FIREWALL, ACCESS_POINT rear — always show a clickable PSU port.
-  // Fall back to 1 if no PSU data recorded so there's always something to click.
+  // For SWITCH, GATEWAY, FIREWALL, ACCESS_POINT rear — show any port groups the
+  // faceplate editor pinned to the rear, then a clickable PWR INLET. Fall back
+  // to 1 PSU if none recorded so there's always something to click.
+  const rearGroups = asset.portGroups.filter((g) => g.face === "REAR");
   return (
-    <Zone title="PWR INLET">
-      <PsuGrid
-        assetId={asset.id}
-        psus={asset.psus}
-        psuCount={Math.max(1, asset.psuCount ?? 1)}
-        connectedPsuOrders={asset.connectedPsuOrders}
-        heightU={asset.rackUnits ?? 1}
-        onInspect={onInspect}
-      />
-    </Zone>
+    <>
+      {rearGroups.map((g) => (
+        <Zone
+          key={g.id}
+          title={g.name ?? PORT_TYPE_LABELS[g.portType as (typeof PORT_TYPES)[number]]}
+        >
+          <PortGrid
+            groupId={g.id}
+            count={g.portCount}
+            connectedPorts={g.connectedPorts}
+            portType={g.portType}
+            rows={g.rows}
+            columns={g.columns}
+            hidden={g.hiddenPorts}
+            heightU={asset.rackUnits ?? 1}
+            onInspect={onInspect}
+          />
+        </Zone>
+      ))}
+      <Zone title="PWR INLET">
+        <PsuGrid
+          assetId={asset.id}
+          psus={asset.psus}
+          psuCount={Math.max(1, asset.psuCount ?? 1)}
+          connectedPsuOrders={asset.connectedPsuOrders}
+          heightU={asset.rackUnits ?? 1}
+          onInspect={onInspect}
+        />
+      </Zone>
+    </>
   );
 }
 
@@ -1652,6 +1698,9 @@ function PortGrid({
   portType,
   heightU,
   onInspect,
+  rows: rowsProp,
+  columns: colsProp,
+  hidden,
 }: {
   groupId: string;
   count: number;
@@ -1659,15 +1708,30 @@ function PortGrid({
   portType?: string;
   heightU: number;
   onInspect: (target: string) => void;
+  rows?: number | null;
+  columns?: number | null;
+  hidden?: number[] | null;
 }) {
   if (count <= 0) return null;
   const sz = portSize(heightU);
-  const per = Math.ceil(count / 2);
-  const slots = Array.from({ length: count }, (_, i) => i + 1);
+  // Hidden ports are omitted from the render but keep their port numbers so
+  // connections still address them correctly.
+  const hiddenSet = new Set(hidden ?? []);
+  const slots = Array.from({ length: count }, (_, i) => i + 1).filter(
+    (n) => !hiddenSet.has(n),
+  );
+  if (slots.length === 0) return null;
+  // Columns-per-row: explicit columns wins; else derive from an explicit row
+  // count; else the default two-row strip.
+  const per =
+    colsProp && colsProp > 0
+      ? colsProp
+      : rowsProp && rowsProp > 0
+        ? Math.ceil(slots.length / rowsProp)
+        : Math.ceil(slots.length / 2);
   const rows: number[][] = [];
-  for (let r = 0; r < 2; r++) {
-    const row = slots.slice(r * per, (r + 1) * per);
-    if (row.length > 0) rows.push(row);
+  for (let i = 0; i < slots.length; i += per) {
+    rows.push(slots.slice(i, i + per));
   }
   const { portLabels } = useDiagramSettings();
   const connectedSet = new Set(connectedPorts);

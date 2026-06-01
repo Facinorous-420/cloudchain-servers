@@ -138,6 +138,10 @@ export default async function EditAssetPage({
       poePerPort: g.poePerPort,
       side: g.side,
       sortOrder: g.sortOrder,
+      face: g.face,
+      rows: g.rows,
+      columns: g.columns,
+      hiddenPorts: (g.hiddenPorts as number[] | null) ?? null,
     })),
     outletGroups: asset.outletGroups.map((g) => ({
       id: g.id,
@@ -148,6 +152,10 @@ export default async function EditAssetPage({
       surgeProtected: g.surgeProtected,
       side: g.side,
       sortOrder: g.sortOrder,
+      face: g.face,
+      rows: g.rows,
+      columns: g.columns,
+      hiddenPorts: (g.hiddenPorts as number[] | null) ?? null,
     })),
     cpus: asset.components
       .filter((c) => c.type === "CPU")

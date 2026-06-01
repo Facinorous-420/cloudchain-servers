@@ -132,6 +132,10 @@ function portGroupCreateData(g: PortGroupInput) {
     poePerPort: g.poePerPort ?? null,
     side: g.side,
     sortOrder: g.sortOrder,
+    face: g.face ?? null,
+    rows: g.rows ?? null,
+    columns: g.columns ?? null,
+    hiddenPorts: g.hiddenPorts ?? undefined,
   };
 }
 
@@ -144,6 +148,10 @@ function outletGroupCreateData(g: OutletGroupInput) {
     surgeProtected: g.surgeProtected,
     side: g.side,
     sortOrder: g.sortOrder,
+    face: g.face ?? null,
+    rows: g.rows ?? null,
+    columns: g.columns ?? null,
+    hiddenPorts: g.hiddenPorts ?? undefined,
   };
 }
 

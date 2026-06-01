@@ -296,6 +296,7 @@ export default async function TopologyPage({
             const isPp = a.category === "PATCH_PANEL";
             return {
               ...pg,
+              hiddenPorts: (pg.hiddenPorts as number[] | null) ?? null,
               connectedPorts: Array.from(
                 isPp ? (pgConnectedFront.get(pg.id) ?? new Set()) : (pgConnected.get(pg.id) ?? new Set()),
               ),
@@ -304,6 +305,7 @@ export default async function TopologyPage({
           }),
           outletGroups: a.outletGroups.map((og) => ({
             ...og,
+            hiddenPorts: (og.hiddenPorts as number[] | null) ?? null,
             connectedOutlets: Array.from(ogConnected.get(og.id) ?? []),
           })),
           shelfItems: a.shelfItems,
