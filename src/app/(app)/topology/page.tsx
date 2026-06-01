@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import { TopologyView } from "./topology-view";
 import { InspectorPane } from "./inspector-pane";
 import type { DiagramRack } from "./rack-diagram";
+import { parseDiagramPrefs } from "@/lib/diagram-prefs";
 
 export default async function TopologyPage({
   searchParams,
@@ -9,6 +11,16 @@ export default async function TopologyPage({
   searchParams: Promise<{ rack?: string; inspect?: string }>;
 }) {
   const { rack: rackParam, inspect: inspectParam } = await searchParams;
+
+  // Per-user diagram view preferences (filters / image mode).
+  const session = await auth();
+  const userPrefs = session?.user?.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { diagramPrefs: true },
+      })
+    : null;
+  const diagramPrefs = parseDiagramPrefs(userPrefs?.diagramPrefs);
 
   // All racks (for the switcher chips).
   const racks = await prisma.rack.findMany({
@@ -281,6 +293,8 @@ export default async function TopologyPage({
           state: a.state,
           requiresSupport: a.requiresSupport,
           depthInches: a.depthInches ?? null,
+          rackRenderFrontPath: a.rackRenderFrontPath,
+          rackRenderRearPath: a.rackRenderRearPath,
           faceOrientation: a.faceOrientation,
           rackFace: a.rackFace ?? null,
           patchPanelType: a.patchPanelType ?? null,
@@ -348,6 +362,7 @@ export default async function TopologyPage({
       }))}
       unboxed={unboxed}
       selectedInspect={inspectParam ?? null}
+      prefs={diagramPrefs}
       inspector={
         inspectParam ? <InspectorPane inspect={inspectParam} /> : null
       }

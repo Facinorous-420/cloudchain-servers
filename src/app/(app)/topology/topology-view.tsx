@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   DndContext,
   DragOverlay,
@@ -24,10 +32,22 @@ import { validatePlacement, type PlacedAsset } from "@/lib/placement";
 import {
   updateAssetPlacement,
   forceMoveWithCascade,
+  saveDiagramPrefs,
   type PlacementTarget,
 } from "./actions";
 import { toggleRackLock } from "../racks/actions";
 import type { DiagramAsset, DiagramRack } from "./rack-diagram";
+import {
+  type DiagramPrefs,
+  DEFAULT_DIAGRAM_PREFS,
+} from "@/lib/diagram-prefs";
+
+// View-pref context so the deep render tree (cards, port/bay grids) can read the
+// active filters without threading props through every level.
+const DiagramPrefsContext = createContext<DiagramPrefs>(DEFAULT_DIAGRAM_PREFS);
+function useDiagramPrefs(): DiagramPrefs {
+  return useContext(DiagramPrefsContext);
+}
 
 // 1U = 40px — tall enough that 48-port 1U switches fit 2 port rows without clipping.
 const U_PX = 40;
@@ -120,6 +140,7 @@ export function TopologyView({
   storages,
   unboxed,
   selectedInspect,
+  prefs,
   inspector,
 }: {
   diagramRack: DiagramRack | null;
@@ -127,6 +148,7 @@ export function TopologyView({
   storages: StorageBox[];
   unboxed: StorageItem[];
   selectedInspect: string | null;
+  prefs: DiagramPrefs;
   inspector: React.ReactNode;
 }) {
   const selectedAssetId =
@@ -135,6 +157,15 @@ export function TopologyView({
       : null;
   const router = useRouter();
   const searchParams = useSearchParams();
+  // View filters — seeded from the saved per-user prefs and persisted on change.
+  const [viewPrefs, setViewPrefs] = useState<DiagramPrefs>(prefs);
+  const togglePref = useCallback((key: keyof DiagramPrefs) => {
+    setViewPrefs((cur) => {
+      const next = { ...cur, [key]: !cur[key] };
+      void saveDiagramPrefs(next);
+      return next;
+    });
+  }, []);
 
   const [draggingAsset, setDraggingAsset] = useState<DiagramAsset | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -270,6 +301,7 @@ export function TopologyView({
   }, [router, searchParams]);
 
   return (
+    <DiagramPrefsContext.Provider value={viewPrefs}>
     <DndContext
       id="topology-dnd"
       sensors={sensors}
@@ -345,6 +377,7 @@ export function TopologyView({
         ) : (
           <>
             <RackSwitcher racks={racks} currentRackId={diagramRack?.id} />
+            <DiagramFilterBar prefs={viewPrefs} onToggle={togglePref} />
             {diagramRack ? (
               <Panel className="px-4 py-4">
                 {/* Mobile tab toggle — hidden on lg+ where both faces show side by side */}
@@ -495,6 +528,48 @@ export function TopologyView({
         <InspectorDrawer onClose={closeInspector}>{inspector}</InspectorDrawer>
       )}
     </DndContext>
+    </DiagramPrefsContext.Provider>
+  );
+}
+
+// Toggle chips for the rack-view filters (issue 4). Persisted per-user.
+function DiagramFilterBar({
+  prefs,
+  onToggle,
+}: {
+  prefs: DiagramPrefs;
+  onToggle: (key: keyof DiagramPrefs) => void;
+}) {
+  const items: { key: keyof DiagramPrefs; label: string }[] = [
+    { key: "hideNames", label: "Hide names" },
+    { key: "hidePorts", label: "Hide ports" },
+    { key: "hideBays", label: "Hide drive bays" },
+    { key: "imageMode", label: "Image mode" },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-text-dim">
+        View
+      </span>
+      {items.map((it) => {
+        const on = prefs[it.key];
+        return (
+          <button
+            key={it.key}
+            type="button"
+            onClick={() => onToggle(it.key)}
+            aria-pressed={on}
+            className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
+              on
+                ? "border-accent bg-accent/15 text-accent"
+                : "border-border bg-panel-2 text-text-dim hover:border-accent/40 hover:text-text"
+            }`}
+          >
+            {it.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1039,12 +1114,35 @@ function DraggableAssetCell({
     isTouch && !dragDisabled
       ? () => onSelectForPlace({ id: asset.id, codename: asset.codename })
       : undefined;
+  const prefs = useDiagramPrefs();
   const isOneU = (asset.rackUnits ?? 1) <= 1;
   const isReversed = asset.faceOrientation === "FRONT_REAR" && asset.rackFace == null;
   // Narrow items (single-column towers) have no room for a codename — it
   // truncates to ~1 letter. Show just the status dot; the full name stays on
-  // the cell tooltip and in the inspector.
-  const isNarrow = asset.formFactor !== "RACK" && (asset.columnSpan ?? 1) <= 1;
+  // the cell tooltip and in the inspector. The "Hide names" filter forces this
+  // treatment on every item.
+  const isNarrow =
+    prefs.hideNames || (asset.formFactor !== "RACK" && (asset.columnSpan ?? 1) <= 1);
+
+  // Image-render mode: show the asset's per-face render image (or a placeholder)
+  // instead of the generated faceplate, with corner drag/inspect handles.
+  if (prefs.imageMode) {
+    return (
+      <ImageModeCell
+        asset={asset}
+        face={face}
+        style={style}
+        setNodeRef={setNodeRef}
+        dragProps={dragDisabled ? {} : { ...attributes, ...listeners }}
+        isDragging={isDragging}
+        isSelected={isSelected}
+        isPlacing={isPlacing}
+        isTouch={isTouch}
+        onInspect={onInspect}
+        onSelectForPlace={onSelectForPlace}
+      />
+    );
+  }
 
   return (
     <div
@@ -1125,6 +1223,104 @@ function DraggableAssetCell({
       <div className="flex min-w-[48px] flex-1 items-stretch gap-0 overflow-hidden px-1.5 py-0.5">
         <AssetFaceContent asset={asset} face={face} onInspect={onInspect} />
       </div>
+    </div>
+  );
+}
+
+// Image-render presentation of an asset: a per-face image filling its U-space
+// (or a placeholder block), with a top-left drag handle and top-right inspect
+// button so move and inspect stay available without the full-cell handle.
+function ImageModeCell({
+  asset,
+  face,
+  style,
+  setNodeRef,
+  dragProps,
+  isDragging,
+  isSelected,
+  isPlacing,
+  isTouch,
+  onInspect,
+  onSelectForPlace,
+}: {
+  asset: DiagramAsset;
+  face: "FRONT" | "REAR";
+  style: React.CSSProperties;
+  setNodeRef: (el: HTMLElement | null) => void;
+  dragProps: Record<string, unknown>;
+  isDragging: boolean;
+  isSelected: boolean;
+  isPlacing: boolean;
+  isTouch: boolean;
+  onInspect: (target: string) => void;
+  onSelectForPlace: (asset: { id: string; codename: string }) => void;
+}) {
+  const imgPath =
+    face === "REAR"
+      ? asset.rackRenderRearPath ?? asset.rackRenderFrontPath
+      : asset.rackRenderFrontPath ?? asset.rackRenderRearPath;
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ ...style, opacity: isDragging ? 0.35 : 1 }}
+      title={`${asset.codename} — ${asset.name}`}
+      className={`group relative m-px overflow-hidden rounded border bg-[#11151b] ${
+        isPlacing || isSelected
+          ? "border-accent ring-2 ring-accent"
+          : "border-border/80"
+      }`}
+    >
+      {imgPath ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imgPath}
+          alt={asset.codename}
+          draggable={false}
+          className="h-full w-full object-fill"
+        />
+      ) : (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-0.5 bg-gradient-to-b from-[#272e37] to-[#1d232b] px-1 text-center">
+          <span
+            aria-hidden
+            className={`mb-0.5 inline-block h-1.5 w-1.5 rounded-full ${asset.state === "IN_USE" ? "bg-status-green" : "bg-faint"}`}
+          />
+          <span className="truncate text-[11px] font-black leading-tight">
+            {asset.codename}
+          </span>
+          <span className="text-[8px] text-faint">add a render image</span>
+        </div>
+      )}
+
+      {/* Top-left: drag handle (desktop) / tap-to-select (touch) */}
+      <button
+        type="button"
+        {...dragProps}
+        onClick={
+          isTouch
+            ? (e) => {
+                e.stopPropagation();
+                onSelectForPlace({ id: asset.id, codename: asset.codename });
+              }
+            : undefined
+        }
+        title="Move"
+        className="absolute left-0.5 top-0.5 z-10 flex h-5 w-5 cursor-grab items-center justify-center rounded bg-bg/70 text-[11px] text-text-dim hover:text-accent active:cursor-grabbing"
+      >
+        ⠿
+      </button>
+      {/* Top-right: open inspector */}
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onInspect(`asset:${asset.id}`);
+        }}
+        title="Details"
+        className="absolute right-0.5 top-0.5 z-10 flex h-5 w-5 items-center justify-center rounded bg-bg/70 text-[11px] text-accent/80 hover:text-accent"
+      >
+        ⓘ
+      </button>
     </div>
   );
 }
@@ -1640,6 +1836,8 @@ function DriveBayGrid({
   heightU: number;
   onInspect: (target: string) => void;
 }) {
+  const prefs = useDiagramPrefs();
+  if (prefs.hideBays) return null;
   const size = BAY_SIZE[zone.driveSize] ?? BAY_SIZE.SFF;
   const drivesByBay = new Map(
     zone.drives
@@ -1712,6 +1910,11 @@ function PortGrid({
   columns?: number | null;
   hidden?: number[] | null;
 }) {
+  // Hooks first (before any early return) so toggling filters can't change the
+  // hook order between renders.
+  const { portLabels } = useDiagramSettings();
+  const prefs = useDiagramPrefs();
+  if (prefs.hidePorts) return null;
   if (count <= 0) return null;
   const sz = portSize(heightU);
   // Hidden ports are omitted from the render but keep their port numbers so
@@ -1733,7 +1936,6 @@ function PortGrid({
   for (let i = 0; i < slots.length; i += per) {
     rows.push(slots.slice(i, i + per));
   }
-  const { portLabels } = useDiagramSettings();
   const connectedSet = new Set(connectedPorts);
   const shortLabel = portType ? (portLabels[portType] ?? DEFAULT_PORT_TYPE_LABELS[portType] ?? portType.slice(0, 3)) : "";
   return (
@@ -1784,6 +1986,8 @@ function OutletGrid({
   surgeProtected: boolean;
   onInspect: (target: string) => void;
 }) {
+  const prefs = useDiagramPrefs();
+  if (prefs.hidePorts) return null;
   if (count <= 0) return null;
   // Overhead: ~24px (margins+borders+zone-title+padding). sz=8 for 1U fits 2 rows (8+3+8=19px ≤ ~19px available).
   const sz = Math.max(6, Math.min(Math.floor((heightU * U_PX - 24) / 2), 16));
@@ -1842,6 +2046,8 @@ function KvmGrid({
   connectedKvmChannels: number[];
   onInspect: (target: string) => void;
 }) {
+  const prefs = useDiagramPrefs();
+  if (prefs.hidePorts) return null;
   if (count <= 0) return null;
   const channels = Array.from({ length: count }, (_, i) => i + 1);
   const connectedSet = new Set(connectedKvmChannels);
@@ -1886,6 +2092,8 @@ function NicGrid({
   heightU: number;
   onInspect: (target: string) => void;
 }) {
+  const prefs = useDiagramPrefs();
+  if (prefs.hidePorts) return null;
   const sz = Math.min(portSize(heightU) + 2, 15);
   const showLabel = sz >= 10;
   return (
@@ -1943,6 +2151,9 @@ function PciNicGrid({
   heightU: number;
   onInspect: (target: string) => void;
 }) {
+  const { portLabels } = useDiagramSettings();
+  const prefs = useDiagramPrefs();
+  if (prefs.hidePorts) return null;
   if (portCount <= 0) return null;
   const sz = portSize(heightU);
   const per = Math.ceil(portCount / 2);
@@ -1952,7 +2163,6 @@ function PciNicGrid({
     const row = slots.slice(r * per, (r + 1) * per);
     if (row.length > 0) rows.push(row);
   }
-  const { portLabels } = useDiagramSettings();
   const shortLabel = portType ? (portLabels[portType] ?? DEFAULT_PORT_TYPE_LABELS[portType] ?? portType.slice(0, 3)) : "N";
   return (
     <div className="flex flex-col gap-[3px]">
@@ -1996,6 +2206,8 @@ function PsuGrid({
   heightU: number;
   onInspect: (target: string) => void;
 }) {
+  const prefs = useDiagramPrefs();
+  if (prefs.hidePorts) return null;
   const ph = Math.min(heightU * U_PX - 26, 18);
   const count = psus.length > 0 ? psus.length : (psuCount ?? 0);
   if (count <= 0) return null;

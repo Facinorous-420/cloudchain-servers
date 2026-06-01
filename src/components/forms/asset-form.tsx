@@ -61,6 +61,8 @@ export type AssetFormData = {
   soldPrice: string;
   notes: string;
   imageGallery: string; // JSON: ImageEntry[]
+  rackRenderFrontPath: string;
+  rackRenderRearPath: string;
   formFactor: string;
   faceOrientation: string;
   rackFace: string;
@@ -140,6 +142,8 @@ const EMPTY: AssetFormData = {
   soldPrice: "",
   notes: "",
   imageGallery: "[]",
+  rackRenderFrontPath: "",
+  rackRenderRearPath: "",
   formFactor: "RACK",
   faceOrientation: "FRONT_FRONT",
   rackFace: "",
@@ -970,6 +974,31 @@ export function AssetForm({
             />
           </FieldSet>
 
+          <FieldSet legend="Rack render (image mode)">
+            <p className="mb-2 text-[11.5px] text-text-dim">
+              Optional images shown when the topology view is in image mode. Each
+              is sized to this item&apos;s U-space.
+            </p>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <RackRenderUpload
+                name="rackRenderFrontPath"
+                faceLabel="Front"
+                defaultValue={data.rackRenderFrontPath}
+                rackUnits={
+                  parseInt(data.rackUnits || derivedRackUnitsFromHeight || "0", 10) || 0
+                }
+              />
+              <RackRenderUpload
+                name="rackRenderRearPath"
+                faceLabel="Rear"
+                defaultValue={data.rackRenderRearPath}
+                rackUnits={
+                  parseInt(data.rackUnits || derivedRackUnitsFromHeight || "0", 10) || 0
+                }
+              />
+            </div>
+          </FieldSet>
+
           <FieldSet legend="Notes">
             <Field label="Notes" htmlFor="notes">
               <Textarea id="notes" name="notes" defaultValue={data.notes} />
@@ -1546,6 +1575,104 @@ function FaceplatePreview({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Per-face rack-render image upload (issue 4 image mode). Blocks uploading until
+// the asset's rack height (U) is set, and previews the image scaled into the
+// item's exact U-space inside a small example rack.
+function RackRenderUpload({
+  name,
+  faceLabel,
+  defaultValue,
+  rackUnits,
+}: {
+  name: string;
+  faceLabel: string;
+  defaultValue: string;
+  rackUnits: number;
+}) {
+  const [path, setPath] = useState(defaultValue);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ready = rackUnits >= 1;
+  const U_PREVIEW = 22; // px per U in the example rack
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const json = (await res.json()) as { path?: string; error?: string };
+      if (!res.ok || !json.path) setError(json.error ?? "Upload failed");
+      else setPath(json.path);
+    } catch {
+      setError("Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-border bg-panel-2 p-3">
+      <input type="hidden" name={name} value={path} />
+      <p className="text-[11px] font-bold uppercase tracking-wide text-text-dim">
+        {faceLabel} render image
+      </p>
+      {!ready ? (
+        <p className="text-[11px] text-cat-ups">
+          Set the rack height (U) under Physical first — the preview sizes the
+          image to the item&apos;s U-space.
+        </p>
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <label className="cursor-pointer rounded-md border border-border px-2.5 py-1 text-[12px] text-text-dim transition-colors hover:border-accent hover:text-accent">
+              {uploading ? "Uploading…" : path ? "Replace image" : "Upload image"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFile(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {path && (
+              <button
+                type="button"
+                onClick={() => setPath("")}
+                className="text-[11px] text-text-dim hover:text-red-400"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {error && <p className="text-[11px] text-red-400">{error}</p>}
+          {path && (
+            <div>
+              <p className="mb-1 text-[10px] text-faint">Preview in rack:</p>
+              <div className="inline-flex flex-col rounded-sm border border-[#04070b] bg-[#0a0d12] p-1">
+                {/* one empty U above, the item, one empty U below */}
+                <div className="h-[6px]" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={path}
+                  alt={`${faceLabel} render`}
+                  className="block w-[260px] rounded-[2px] object-fill"
+                  style={{ height: rackUnits * U_PREVIEW }}
+                />
+                <div className="h-[6px]" />
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

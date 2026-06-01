@@ -9,6 +9,18 @@ import {
   validatePlacement,
   type PlacedAsset,
 } from "@/lib/placement";
+import { parseDiagramPrefs } from "@/lib/diagram-prefs";
+
+// Persist the current user's rack-diagram view preferences (per-user, JSON).
+export async function saveDiagramPrefs(raw: unknown): Promise<void> {
+  const user = await requireUser();
+  if (!user.id) return;
+  const prefs = parseDiagramPrefs(raw);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { diagramPrefs: prefs },
+  });
+}
 
 export type PlacementResult =
   | { ok: true }

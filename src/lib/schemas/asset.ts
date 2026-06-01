@@ -51,6 +51,8 @@ export const assetSchema = z.object({
   soldDate: optionalDate,
   soldPrice: optionalNumber,
   notes: optionalText,
+  rackRenderFrontPath: optionalText,
+  rackRenderRearPath: optionalText,
 
   formFactor: z.enum(FORM_FACTORS),
   faceOrientation: z.enum(["FRONT_FRONT", "FRONT_REAR"]).default("FRONT_FRONT"),

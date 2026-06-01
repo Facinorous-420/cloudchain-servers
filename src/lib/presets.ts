@@ -201,6 +201,8 @@ export function assetPresetToFormData(
     soldPrice: "",
     notes: "",
     imageGallery,
+    rackRenderFrontPath: "",
+    rackRenderRearPath: "",
     storageId: "",
     warrantyEndDate: "",
     biosVersion: "",

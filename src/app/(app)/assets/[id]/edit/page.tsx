@@ -73,6 +73,8 @@ export default async function EditAssetPage({
     imageGallery: JSON.stringify(
       asset.images.map((img) => ({ path: img.path, isMain: img.isMain }))
     ),
+    rackRenderFrontPath: asset.rackRenderFrontPath ?? "",
+    rackRenderRearPath: asset.rackRenderRearPath ?? "",
     formFactor: asset.formFactor,
     faceOrientation: asset.faceOrientation ?? "FRONT_FRONT",
     rackFace: asset.rackFace ?? "",

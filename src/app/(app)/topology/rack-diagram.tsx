@@ -58,6 +58,9 @@ export type DiagramAsset = {
   state: string;
   requiresSupport: boolean;
   depthInches: number | null;
+  // Image-render mode (issue 4): per-face image sized to the asset's U-space.
+  rackRenderFrontPath?: string | null;
+  rackRenderRearPath?: string | null;
   // FRONT_FRONT = normal; FRONT_REAR = reversed mount (topology swaps faces).
   // Only relevant for full-depth items (rackFace = null).
   faceOrientation: string | null;

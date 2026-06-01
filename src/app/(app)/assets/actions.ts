@@ -63,6 +63,8 @@ function assetScalarData(v: AssetFormValues) {
     soldDate: v.soldDate,
     soldPrice: v.soldPrice,
     notes: v.notes,
+    rackRenderFrontPath: v.rackRenderFrontPath,
+    rackRenderRearPath: v.rackRenderRearPath,
     formFactor: v.formFactor,
     faceOrientation: v.faceOrientation,
     rackFace: v.rackFace ?? null,
