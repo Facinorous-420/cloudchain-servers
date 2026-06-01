@@ -11,6 +11,7 @@ import {
 import { formatDate, formatMoney } from "@/lib/format";
 import { enumLabel, PORT_TYPE_LABELS } from "@/lib/enums";
 import { EntityImage } from "@/components/ui/entity-image";
+import { RiserSlots } from "./riser-slots";
 
 export default async function ComponentDetailPage({
   params,
@@ -22,9 +23,31 @@ export default async function ComponentDetailPage({
     where: { id },
     include: {
       installedIn: { select: { id: true, codename: true } },
+      bayZones: {
+        orderBy: { sortOrder: "asc" },
+        include: {
+          drives: { select: { id: true, name: true, bayNumber: true } },
+        },
+      },
     },
   });
   if (!component) notFound();
+
+  const isRiser = component.type === "NVME_RISER";
+  const riserZone = isRiser ? component.bayZones[0] : null;
+  // In-storage M.2 drives available to drop into a free riser slot.
+  const availableM2Drives = riserZone
+    ? await prisma.drive.findMany({
+        where: {
+          size: "M2",
+          installedInId: null,
+          bayZoneId: null,
+          state: { notIn: ["SOLD", "JUNKED"] },
+        },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, capacityGB: true },
+      })
+    : [];
 
   const isCpu = component.type === "CPU";
   const isRam = component.type === "RAM";
@@ -138,6 +161,28 @@ export default async function ComponentDetailPage({
           <DetailGrid>
             <DetailField label="Interface" value={component.cardInterface} />
           </DetailGrid>
+        </DetailSection>
+      )}
+
+      {isRiser && (
+        <DetailSection title="M.2 slots">
+          {riserZone ? (
+            <RiserSlots
+              bayZoneId={riserZone.id}
+              bayCount={riserZone.bayCount}
+              occupants={Object.fromEntries(
+                riserZone.drives
+                  .filter((d) => d.bayNumber != null)
+                  .map((d) => [d.bayNumber as number, { id: d.id, name: d.name }]),
+              )}
+              available={availableM2Drives}
+            />
+          ) : (
+            <p className="text-[12px] text-faint">
+              Set this riser&apos;s M.2 slot count on its edit page to mount
+              drives.
+            </p>
+          )}
         </DetailSection>
       )}
 

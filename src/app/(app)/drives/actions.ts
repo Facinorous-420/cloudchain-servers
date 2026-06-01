@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/require-user";
 import type { FormState } from "@/lib/form-state";
 import { driveSchema, type DriveFormValues } from "@/lib/schemas/drive";
+import { DRIVE_KINDS } from "@/lib/enums";
+import type { DriveKind } from "@/generated/prisma";
 
 function driveScalarData(v: DriveFormValues) {
   return {
@@ -238,6 +240,73 @@ export async function mountDriveInBay(formData: FormData): Promise<void> {
   }
 }
 
+// Create a brand-new drive directly into a bay (used by the riser detail page's
+// "create + mount" quick action, mirroring mountDriveInBay for an existing one).
+export async function createDriveInBay(formData: FormData): Promise<void> {
+  await requireUser();
+  const name = formData.get("name");
+  const bayZoneId = formData.get("bayZoneId");
+  const bayNumberRaw = formData.get("bayNumber");
+  const capacityRaw = formData.get("capacityGB");
+  const kindRaw = formData.get("kind");
+  if (
+    typeof name !== "string" ||
+    name.trim() === "" ||
+    typeof bayZoneId !== "string" ||
+    typeof bayNumberRaw !== "string"
+  ) {
+    return;
+  }
+  const bayNumber = Number(bayNumberRaw);
+  const capacityGB = Number(capacityRaw);
+  if (!Number.isFinite(bayNumber) || bayNumber < 1) return;
+  if (!Number.isFinite(capacityGB) || capacityGB <= 0) return;
+
+  const zone = await prisma.bayZone.findUnique({
+    where: { id: bayZoneId },
+    include: { component: { select: { id: true, installedInId: true } } },
+  });
+  if (!zone) return;
+  if (bayNumber > zone.bayCount) return;
+
+  const occupied = await prisma.drive.findFirst({
+    where: { bayZoneId, bayNumber },
+    select: { id: true },
+  });
+  if (occupied) return;
+
+  const kind: DriveKind =
+    typeof kindRaw === "string" &&
+    (DRIVE_KINDS as readonly string[]).includes(kindRaw)
+      ? (kindRaw as DriveKind)
+      : "NVME";
+  const hostAssetId = zone.assetId ?? zone.component?.installedInId ?? null;
+
+  await prisma.drive.create({
+    data: {
+      name: name.trim(),
+      kind,
+      size: zone.driveSize,
+      capacityGB: Math.floor(capacityGB),
+      state: "IN_USE",
+      installedInId: hostAssetId,
+      bayZoneId,
+      bayNumber,
+    },
+  });
+  revalidatePath("/drives");
+  revalidatePath("/topology");
+  if (zone.component) revalidatePath(`/components/${zone.component.id}`);
+  if (hostAssetId) {
+    revalidatePath(`/assets/${hostAssetId}`);
+    const host = await prisma.asset.findUnique({
+      where: { id: hostAssetId },
+      select: { rackId: true },
+    });
+    if (host?.rackId) revalidatePath(`/racks/${host.rackId}`);
+  }
+}
+
 // Pull a drive out of its bay without deleting the record. The drive
 // goes back to "storage" (installedInId, bayZoneId, bayNumber all null).
 // Used by the bay inspector + drive detail page so swapping a drive is
@@ -246,7 +315,11 @@ export async function removeDriveFromBay(id: string): Promise<void> {
   await requireUser();
   const drive = await prisma.drive.findUnique({
     where: { id },
-    select: { installedInId: true, installedIn: { select: { rackId: true } } },
+    select: {
+      installedInId: true,
+      installedIn: { select: { rackId: true } },
+      bayZone: { select: { componentId: true } },
+    },
   });
   await prisma.drive.update({
     where: { id },
@@ -260,5 +333,8 @@ export async function removeDriveFromBay(id: string): Promise<void> {
   }
   if (drive?.installedIn?.rackId) {
     revalidatePath(`/racks/${drive.installedIn.rackId}`);
+  }
+  if (drive?.bayZone?.componentId) {
+    revalidatePath(`/components/${drive.bayZone.componentId}`);
   }
 }
