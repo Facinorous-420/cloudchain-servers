@@ -12,11 +12,12 @@ export default async function TopologyPage({
 }) {
   const { rack: rackParam, inspect: inspectParam } = await searchParams;
 
-  // Per-user diagram view preferences (filters / image mode).
+  // Per-user diagram view preferences (filters / image mode). Keyed by username
+  // (stable + unique) — the session id can be stale after a dev DB reseed.
   const session = await auth();
-  const userPrefs = session?.user?.id
+  const userPrefs = session?.user?.username
     ? await prisma.user.findUnique({
-        where: { id: session.user.id },
+        where: { username: session.user.username },
         select: { diagramPrefs: true },
       })
     : null;

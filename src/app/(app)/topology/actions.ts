@@ -12,12 +12,14 @@ import {
 import { parseDiagramPrefs } from "@/lib/diagram-prefs";
 
 // Persist the current user's rack-diagram view preferences (per-user, JSON).
+// Keyed by username (stable + unique) rather than the session id, which can be
+// stale if the dev DB was reseeded; updateMany avoids throwing on no match.
 export async function saveDiagramPrefs(raw: unknown): Promise<void> {
   const user = await requireUser();
-  if (!user.id) return;
+  if (!user.username) return;
   const prefs = parseDiagramPrefs(raw);
-  await prisma.user.update({
-    where: { id: user.id },
+  await prisma.user.updateMany({
+    where: { username: user.username },
     data: { diagramPrefs: prefs },
   });
 }
