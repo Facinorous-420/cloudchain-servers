@@ -3,6 +3,7 @@ import { DriveForm, type DriveFormData } from "@/components/forms/drive-form";
 import { DRIVE_KINDS, DRIVE_SIZES } from "@/lib/enums";
 import { dateInput } from "@/lib/format";
 import { createDrive } from "../actions";
+import { loadDriveHosts } from "../load-hosts";
 
 export default async function NewDrivePage({
   searchParams,
@@ -19,24 +20,8 @@ export default async function NewDrivePage({
 }) {
   const params = await searchParams;
 
-  const [assets, source, fromAsset] = await Promise.all([
-    prisma.asset.findMany({
-      orderBy: { codename: "asc" },
-      select: {
-        id: true,
-        codename: true,
-        bayZones: {
-          select: {
-            id: true,
-            name: true,
-            driveSize: true,
-            bayCount: true,
-            drives: { select: { bayNumber: true } },
-          },
-          orderBy: { sortOrder: "asc" },
-        },
-      },
-    }),
+  const [hosts, source, fromAsset] = await Promise.all([
+    loadDriveHosts(),
     params.fromId
       ? prisma.drive.findUnique({ where: { id: params.fromId } })
       : Promise.resolve(null),
@@ -53,19 +38,6 @@ export default async function NewDrivePage({
         })
       : Promise.resolve(null),
   ]);
-  const hosts = assets.map((a) => ({
-    id: a.id,
-    codename: a.codename,
-    bayZones: a.bayZones.map((z) => ({
-      id: z.id,
-      name: z.name,
-      driveSize: z.driveSize,
-      bayCount: z.bayCount,
-      occupiedBays: z.drives
-        .map((d) => d.bayNumber)
-        .filter((n): n is number => n != null),
-    })),
-  }));
 
   // Build the prefilled form data. Two routes feed into this:
   // - Empty-bay click → installedInId/bayZoneId/bayNumber/size in query

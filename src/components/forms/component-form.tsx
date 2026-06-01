@@ -58,6 +58,8 @@ export type ComponentFormData = {
   // PSU
   wattsRating: string;
   modular: boolean;
+  // NVME_RISER
+  m2SlotCount: string;
   // Lifecycle
   state: string;
   soldDate: string;
@@ -102,6 +104,7 @@ const EMPTY: ComponentFormData = {
   cardInterface: "",
   wattsRating: "",
   modular: false,
+  m2SlotCount: "",
   state: "IN_USE",
   soldDate: "",
   soldPrice: "",
@@ -161,6 +164,7 @@ export function ComponentForm({
   const hasCardInterface =
     type === "RAID_CONTROLLER" || type === "PCIE_CARD" || type === "NIC_CARD";
   const isPsu = type === "POWER_SUPPLY";
+  const isRiser = type === "NVME_RISER";
 
   const field = (
     name: StringKey,
@@ -328,6 +332,19 @@ export function ComponentForm({
               {field("cardInterface", "PCIe interface", "text", {
                 hint: 'e.g. "PCIe 3.0 x8".',
               })}
+            </FieldSet>
+          )}
+
+          {isRiser && (
+            <FieldSet legend="NVMe riser">
+              <div className="grid grid-cols-2 gap-4">
+                {field("m2SlotCount", "M.2 slots", "number", {
+                  hint: "How many M.2 slots this riser has. Saving creates that many mountable slots; mount NVMe drives into them from the drive form, the riser's detail page, or the topology inspector.",
+                })}
+                {field("cardInterface", "PCIe interface", "text", {
+                  hint: 'e.g. "PCIe 3.0 x8".',
+                })}
+              </div>
             </FieldSet>
           )}
 

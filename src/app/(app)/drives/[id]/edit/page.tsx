@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { DriveForm, type DriveFormData } from "@/components/forms/drive-form";
 import { dateInput } from "@/lib/format";
 import { updateDrive } from "../../actions";
+import { loadDriveHosts } from "../../load-hosts";
 
 export default async function EditDrivePage({
   params,
@@ -10,44 +11,12 @@ export default async function EditDrivePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [drive, assets] = await Promise.all([
+  const [drive, hosts] = await Promise.all([
     prisma.drive.findUnique({ where: { id } }),
-    prisma.asset.findMany({
-      orderBy: { codename: "asc" },
-      select: {
-        id: true,
-        codename: true,
-        bayZones: {
-          select: {
-            id: true,
-            name: true,
-            driveSize: true,
-            bayCount: true,
-            drives: { select: { id: true, bayNumber: true } },
-          },
-          orderBy: { sortOrder: "asc" },
-        },
-      },
-    }),
+    loadDriveHosts(id),
   ]);
 
   if (!drive) notFound();
-
-  const hosts = assets.map((a) => ({
-    id: a.id,
-    codename: a.codename,
-    bayZones: a.bayZones.map((z) => ({
-      id: z.id,
-      name: z.name,
-      driveSize: z.driveSize,
-      bayCount: z.bayCount,
-      // exclude the drive we're editing so its current bay is selectable.
-      occupiedBays: z.drives
-        .filter((d) => d.id !== drive.id)
-        .map((d) => d.bayNumber)
-        .filter((n): n is number => n != null),
-    })),
-  }));
 
   const data: DriveFormData = {
     id: drive.id,

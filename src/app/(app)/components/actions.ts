@@ -48,10 +48,82 @@ function scalarData(v: ComponentFormValues) {
     cardInterface: CARD_TYPES.has(v.type) ? v.cardInterface : null,
     wattsRating: v.type === "POWER_SUPPLY" ? v.wattsRating : null,
     modular: v.type === "POWER_SUPPLY" ? v.modular : null,
+    m2SlotCount: v.type === "NVME_RISER" ? v.m2SlotCount : null,
     state: v.state,
     soldDate: v.soldDate,
     soldPrice: v.soldPrice,
   };
+}
+
+// An NVMe riser exposes its M.2 slots as a single BayZone (driveSize=M2) keyed
+// by componentId. Keep that zone in sync with the riser's m2SlotCount: create
+// it, resize it, or remove it. Returns a FormState error when the change would
+// orphan mounted drives, else null on success.
+async function reconcileRiserBayZone(
+  componentId: string,
+  type: string,
+  m2SlotCount: number | null,
+): Promise<FormState | null> {
+  const existing = await prisma.bayZone.findFirst({
+    where: { componentId },
+    include: { _count: { select: { drives: true } } },
+  });
+  const wantCount = type === "NVME_RISER" ? m2SlotCount ?? 0 : 0;
+
+  if (wantCount <= 0) {
+    // No slots wanted — remove the zone unless drives are still mounted.
+    if (existing) {
+      if (existing._count.drives > 0) {
+        return {
+          fieldErrors: {
+            m2SlotCount: [
+              "Remove the mounted drives before clearing this riser's slots",
+            ],
+          },
+        };
+      }
+      await prisma.bayZone.delete({ where: { id: existing.id } });
+    }
+    return null;
+  }
+
+  if (!existing) {
+    await prisma.bayZone.create({
+      data: {
+        componentId,
+        name: "M.2 slots",
+        faceSide: "FRONT",
+        driveSize: "M2",
+        bayCount: wantCount,
+        sortOrder: 0,
+      },
+    });
+    return null;
+  }
+
+  if (wantCount < existing.bayCount) {
+    // Shrinking — make sure no drive occupies a slot above the new count.
+    const tooHigh = await prisma.drive.findFirst({
+      where: { bayZoneId: existing.id, bayNumber: { gt: wantCount } },
+      select: { id: true },
+    });
+    if (tooHigh) {
+      return {
+        fieldErrors: {
+          m2SlotCount: [
+            "A drive is mounted in a slot above this count — unmount it first",
+          ],
+        },
+      };
+    }
+  }
+  if (wantCount !== existing.bayCount) {
+    await prisma.bayZone.update({
+      where: { id: existing.id },
+      data: { bayCount: wantCount },
+    });
+  }
+  return null;
 }
 
 export async function createComponent(
@@ -63,7 +135,8 @@ export async function createComponent(
   if (!parsed.success) {
     return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
   }
-  await prisma.component.create({ data: scalarData(parsed.data) });
+  const created = await prisma.component.create({ data: scalarData(parsed.data) });
+  await reconcileRiserBayZone(created.id, parsed.data.type, parsed.data.m2SlotCount);
   revalidatePath("/components");
   redirect("/components");
 }
@@ -78,8 +151,15 @@ export async function updateComponent(
   if (!parsed.success) {
     return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
   }
+  const riserError = await reconcileRiserBayZone(
+    id,
+    parsed.data.type,
+    parsed.data.m2SlotCount,
+  );
+  if (riserError) return riserError;
   await prisma.component.update({ where: { id }, data: scalarData(parsed.data) });
   revalidatePath("/components");
+  revalidatePath(`/components/${id}`);
   redirect("/components");
 }
 

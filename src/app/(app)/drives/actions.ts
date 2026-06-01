@@ -40,11 +40,27 @@ type Placement = {
 
 // Enforces the drive placement rule (CLAUDE.md §5): a drive with a host must
 // have a valid, in-range, unoccupied bay; a drive in storage has none.
+// Placement is keyed by the bay zone — the host asset is derived from it. A zone
+// can belong directly to an asset (server bays) or to an NVMe riser component,
+// in which case the host is the asset the riser is installed in (or none, if the
+// riser is itself in storage).
 async function resolvePlacement(
   v: DriveFormValues,
   currentDriveId: string | null,
 ): Promise<{ ok: true; placement: Placement } | { ok: false; state: FormState }> {
-  if (!v.installedInId) {
+  if (!v.bayZoneId) {
+    // A mount target was chosen but no bay — nudge the user rather than
+    // silently dropping the drive into storage.
+    if (v.installedInId) {
+      return {
+        ok: false,
+        state: {
+          fieldErrors: {
+            bayZoneId: ["Select a bay zone, or set 'Installed in' to storage"],
+          },
+        },
+      };
+    }
     return {
       ok: true,
       placement: { installedInId: null, bayZoneId: null, bayNumber: null },
@@ -52,31 +68,27 @@ async function resolvePlacement(
   }
 
   const { bayZoneId, bayNumber } = v;
-  if (!bayZoneId || bayNumber == null) {
+  if (bayNumber == null) {
     return {
       ok: false,
       state: {
-        fieldErrors: {
-          ...(bayZoneId
-            ? {}
-            : { bayZoneId: ["Required when the drive is installed"] }),
-          ...(bayNumber == null
-            ? { bayNumber: ["Required when the drive is installed"] }
-            : {}),
-        },
+        fieldErrors: { bayNumber: ["Required when the drive is installed"] },
       },
     };
   }
 
-  const zone = await prisma.bayZone.findUnique({ where: { id: bayZoneId } });
-  if (!zone || zone.assetId !== v.installedInId) {
+  const zone = await prisma.bayZone.findUnique({
+    where: { id: bayZoneId },
+    include: { component: { select: { installedInId: true } } },
+  });
+  if (!zone) {
     return {
       ok: false,
-      state: {
-        fieldErrors: { bayZoneId: ["That bay zone is not on the selected host"] },
-      },
+      state: { fieldErrors: { bayZoneId: ["That bay zone no longer exists"] } },
     };
   }
+  // Host: the asset that owns the zone, or the asset the riser is installed in.
+  const hostAssetId = zone.assetId ?? zone.component?.installedInId ?? null;
   if (zone.driveSize !== v.size) {
     return {
       ok: false,
@@ -117,7 +129,7 @@ async function resolvePlacement(
 
   return {
     ok: true,
-    placement: { installedInId: v.installedInId, bayZoneId, bayNumber },
+    placement: { installedInId: hostAssetId, bayZoneId, bayNumber },
   };
 }
 
@@ -188,7 +200,10 @@ export async function mountDriveInBay(formData: FormData): Promise<void> {
 
   const [drive, zone] = await Promise.all([
     prisma.drive.findUnique({ where: { id: driveId } }),
-    prisma.bayZone.findUnique({ where: { id: bayZoneId } }),
+    prisma.bayZone.findUnique({
+      where: { id: bayZoneId },
+      include: { component: { select: { id: true, installedInId: true } } },
+    }),
   ]);
   if (!drive || !zone) return;
   if (drive.state === "SOLD" || drive.state === "JUNKED") return;
@@ -202,21 +217,21 @@ export async function mountDriveInBay(formData: FormData): Promise<void> {
   });
   if (occupied) return;
 
+  // Host asset is the zone's asset, or the asset the riser is installed in.
+  const hostAssetId = zone.assetId ?? zone.component?.installedInId ?? null;
+
   await prisma.drive.update({
     where: { id: drive.id },
-    data: {
-      installedInId: zone.assetId,
-      bayZoneId,
-      bayNumber,
-    },
+    data: { installedInId: hostAssetId, bayZoneId, bayNumber },
   });
   revalidatePath("/drives");
   revalidatePath(`/drives/${drive.id}`);
   revalidatePath("/topology");
-  revalidatePath(`/assets/${zone.assetId}`);
-  if (zone.assetId) {
+  if (zone.component) revalidatePath(`/components/${zone.component.id}`);
+  if (hostAssetId) {
+    revalidatePath(`/assets/${hostAssetId}`);
     const host = await prisma.asset.findUnique({
-      where: { id: zone.assetId },
+      where: { id: hostAssetId },
       select: { rackId: true },
     });
     if (host?.rackId) revalidatePath(`/racks/${host.rackId}`);

@@ -125,7 +125,14 @@ export function DriveForm({
   const [lifecycleState, setLifecycleState] = useState(data.state);
   const showSoldFields = lifecycleState === "SOLD" || lifecycleState === "JUNKED";
   const [size, setSize] = useState(data.size);
-  const [installedInId, setInstalledInId] = useState(data.installedInId);
+  // Preselect the mount target from the drive's bay zone — a zone can belong to
+  // an asset or to an NVMe riser, and only the zone identifies which option.
+  // Fall back to installedInId for a host that has no zone selected yet.
+  const initialHostId =
+    (data.bayZoneId &&
+      hosts.find((h) => h.bayZones.some((z) => z.id === data.bayZoneId))?.id) ||
+    data.installedInId;
+  const [installedInId, setInstalledInId] = useState(initialHostId);
   const [bayZoneId, setBayZoneId] = useState(data.bayZoneId);
   const [bayNumber, setBayNumber] = useState(data.bayNumber);
   const err = (name: string) => state.fieldErrors?.[name]?.[0];
@@ -266,7 +273,7 @@ export function DriveForm({
         <Field
           label="Installed in"
           htmlFor="installedInId"
-          hint="Only hosts with a matching-size bay zone that still has free bays are listed."
+          hint="Hosts (and NVMe risers) with a matching-size bay zone that still has free bays. NVMe drives can mount into a riser's M.2 slots."
           error={err("installedInId")}
         >
           <Select

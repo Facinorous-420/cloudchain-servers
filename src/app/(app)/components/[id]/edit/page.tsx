@@ -55,6 +55,7 @@ export default async function EditComponentPage({
     cardInterface: component.cardInterface ?? "",
     wattsRating: component.wattsRating?.toString() ?? "",
     modular: component.modular ?? false,
+    m2SlotCount: component.m2SlotCount?.toString() ?? "",
     state: component.state,
     soldDate: dateInput(component.soldDate),
     soldPrice: component.soldPrice?.toString() ?? "",
