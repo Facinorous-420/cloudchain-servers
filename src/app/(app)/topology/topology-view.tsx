@@ -143,6 +143,13 @@ export function TopologyView({
   const [mobileFace, setMobileFace] = useState<"FRONT" | "REAR">("FRONT");
   const [rackWidth, setRackWidth] = useState(0);
   const rackGridRef = useRef<HTMLDivElement>(null);
+  // Touch devices can't drag precisely, so on a coarse pointer we switch to a
+  // tap-to-place flow: tap an asset to select it, then tap a destination slot
+  // or storage box. Drag is kept for fine (mouse) pointers.
+  const [isTouch, setIsTouch] = useState(false);
+  const [placing, setPlacing] = useState<{ id: string; codename: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     const el = rackGridRef.current;
@@ -153,6 +160,15 @@ export function TopologyView({
     obs.observe(el);
     setRackWidth(el.clientWidth);
     return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(pointer: coarse)");
+    const apply = () => setIsTouch(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
   }, []);
 
   const sensors = useSensors(
@@ -166,16 +182,10 @@ export function TopologyView({
     setError(null);
   }, []);
 
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      setDraggingAsset(null);
-      const data = event.active.data.current as
-        | { assetId?: string; asset?: DiagramAsset }
-        | undefined;
-      const assetId = data?.assetId ?? data?.asset?.id;
-      if (!assetId) return;
-      const target = event.over?.data.current as PlacementTarget | undefined;
-      if (!target) return;
+  // Shared move path used by both drag-drop and mobile tap-to-place.
+  const performMove = useCallback(
+    (assetId: string, target: PlacementTarget) => {
+      setError(null);
       startTransition(async () => {
         const result = await updateAssetPlacement(assetId, target);
         if (!result.ok) {
@@ -190,6 +200,38 @@ export function TopologyView({
       });
     },
     [router],
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setDraggingAsset(null);
+      const data = event.active.data.current as
+        | { assetId?: string; asset?: DiagramAsset }
+        | undefined;
+      const assetId = data?.assetId ?? data?.asset?.id;
+      if (!assetId) return;
+      const target = event.over?.data.current as PlacementTarget | undefined;
+      if (!target) return;
+      performMove(assetId, target);
+    },
+    [performMove],
+  );
+
+  // Tap-to-place: tapping a destination while an asset is selected moves it.
+  const handleTapPlace = useCallback(
+    (target: PlacementTarget) => {
+      if (!placing) return;
+      const assetId = placing.id;
+      setPlacing(null);
+      performMove(assetId, target);
+    },
+    [placing, performMove],
+  );
+
+  const selectForPlace = useCallback(
+    (asset: { id: string; codename: string }) =>
+      setPlacing((cur) => (cur?.id === asset.id ? null : asset)),
+    [],
   );
 
   const handleConfirmMove = useCallback(() => {
@@ -241,8 +283,10 @@ export function TopologyView({
             <h1 className="text-xl font-black">Topology</h1>
             <p className="mt-0.5 text-[11.5px] text-text-dim">
               {diagramRack?.isLocked
-                ? "This rack is locked — unlock it to drag devices. Sub-elements stay interactive."
-                : "Drag a device to move it. Drag into a Storage box to take it off the rack. Click a name plate to open the inspector."}
+                ? "This rack is locked — unlock it to move devices. Sub-elements stay interactive."
+                : isTouch
+                  ? "Tap a device to pick it up, then tap a rack slot or a Storage box to place it. Tap a name plate for details."
+                  : "Drag a device to move it. Drag into a Storage box to take it off the rack. Click a name plate to open the inspector."}
             </p>
           </div>
           <div className="flex gap-2">
@@ -327,6 +371,10 @@ export function TopologyView({
                       onInspect={selectInspect}
                       selectedAssetId={selectedAssetId}
                       gridRef={rackGridRef}
+                      isTouch={isTouch}
+                      placingId={placing?.id ?? null}
+                      onSelectForPlace={selectForPlace}
+                      onTapPlace={handleTapPlace}
                     />
                   </div>
                   <div className={mobileFace === "REAR" ? "block" : "hidden lg:block"}>
@@ -336,6 +384,10 @@ export function TopologyView({
                       isPending={isPending}
                       onInspect={selectInspect}
                       selectedAssetId={selectedAssetId}
+                      isTouch={isTouch}
+                      placingId={placing?.id ?? null}
+                      onSelectForPlace={selectForPlace}
+                      onTapPlace={handleTapPlace}
                     />
                   </div>
                 </div>
@@ -353,8 +405,40 @@ export function TopologyView({
           storages={storages}
           unboxed={unboxed}
           onAssetClick={selectAsset}
+          isTouch={isTouch}
+          placingId={placing?.id ?? null}
+          onSelectForPlace={selectForPlace}
+          onTapPlace={handleTapPlace}
         />
       </div>
+
+      {/* Mobile tap-to-place banner — only while an asset is selected for moving */}
+      {placing && (
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-accent/40 bg-panel px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,.5)] lg:hidden">
+          <div className="flex items-center gap-3">
+            <span className="min-w-0 flex-1 text-[12.5px] text-text">
+              Moving <span className="font-black text-accent">{placing.codename}</span>
+              <span className="block text-[11px] text-text-dim">
+                Tap a rack slot or a storage box to place it.
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => handleTapPlace({ kind: "storage", storageId: null })}
+              className="shrink-0 rounded-md border border-border px-3 py-1.5 text-[12px] text-text-dim hover:border-accent hover:text-accent"
+            >
+              To storage
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlacing(null)}
+              className="shrink-0 rounded-md border border-border px-3 py-1.5 text-[12px] text-text-dim hover:border-accent hover:text-text"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Drag overlay: sized to the asset's actual footprint so the ghost
           preview matches what it will occupy when dropped. RACK items span
@@ -672,6 +756,10 @@ function InteractiveRack({
   onInspect,
   selectedAssetId,
   gridRef,
+  isTouch,
+  placingId,
+  onSelectForPlace,
+  onTapPlace,
 }: {
   rack: DiagramRack;
   face: "FRONT" | "REAR";
@@ -679,6 +767,10 @@ function InteractiveRack({
   onInspect: (target: string) => void;
   selectedAssetId: string | null;
   gridRef?: React.RefObject<HTMLDivElement | null>;
+  isTouch: boolean;
+  placingId: string | null;
+  onSelectForPlace: (asset: { id: string; codename: string }) => void;
+  onTapPlace: (target: PlacementTarget) => void;
 }) {
   // Full-depth items (rackFace=null) render on both faces.
   // Thin items (rackFace="FRONT"/"REAR") only render on their own face.
@@ -790,6 +882,8 @@ function InteractiveRack({
                 col={ci}
                 row={ui + 1}
                 disabled={rack.isLocked}
+                placing={placingId != null}
+                onTapPlace={onTapPlace}
               />
             )),
           )}
@@ -812,6 +906,9 @@ function InteractiveRack({
                 onInspect={onInspect}
                 isSelected={selectedAssetId === a.id}
                 dragDisabled={rack.isLocked}
+                isTouch={isTouch}
+                isPlacing={placingId === a.id}
+                onSelectForPlace={onSelectForPlace}
               />
             );
           })}
@@ -849,6 +946,8 @@ function DroppableUSlot({
   col,
   row,
   disabled,
+  placing,
+  onTapPlace,
 }: {
   face: "FRONT" | "REAR";
   rackId: string;
@@ -856,10 +955,18 @@ function DroppableUSlot({
   col: number;
   row: number;
   disabled?: boolean;
+  placing: boolean;
+  onTapPlace: (target: PlacementTarget) => void;
 }) {
+  const target: PlacementTarget = {
+    kind: "rack",
+    rackId,
+    startU: u,
+    gridColumn: col,
+  };
   const { setNodeRef } = useDroppable({
     id: `cell:${face}:${rackId}:${u}:${col}`,
-    data: { kind: "rack", rackId, startU: u, gridColumn: col } satisfies PlacementTarget,
+    data: target,
     disabled,
   });
   return (
@@ -869,7 +976,12 @@ function DroppableUSlot({
         gridRow: `${row} / span 1`,
         gridColumn: `${col + 1} / span 1`,
       }}
-      className="pointer-events-auto"
+      onClick={placing && !disabled ? () => onTapPlace(target) : undefined}
+      className={`pointer-events-auto ${
+        placing && !disabled
+          ? "cursor-pointer bg-accent/5 ring-1 ring-inset ring-accent/20 hover:bg-accent/15"
+          : ""
+      }`}
     />
   );
 }
@@ -901,6 +1013,9 @@ function DraggableAssetCell({
   onInspect,
   isSelected,
   dragDisabled,
+  isTouch,
+  isPlacing,
+  onSelectForPlace,
 }: {
   asset: DiagramAsset;
   face: "FRONT" | "REAR";
@@ -908,12 +1023,22 @@ function DraggableAssetCell({
   onInspect: (target: string) => void;
   isSelected: boolean;
   dragDisabled?: boolean;
+  isTouch: boolean;
+  isPlacing: boolean;
+  onSelectForPlace: (asset: { id: string; codename: string }) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `asset:${face}:${asset.id}`,
     data: { asset, assetId: asset.id },
     disabled: dragDisabled,
   });
+  // On touch, a tap on the device body selects it for tap-to-place (drag is
+  // unreliable). Sub-elements (name plate, ports, bays) stopPropagation, so a
+  // body tap is unambiguous.
+  const bodyTap =
+    isTouch && !dragDisabled
+      ? () => onSelectForPlace({ id: asset.id, codename: asset.codename })
+      : undefined;
   const isOneU = (asset.rackUnits ?? 1) <= 1;
   const isReversed = asset.faceOrientation === "FRONT_REAR" && asset.rackFace == null;
   // Narrow items (single-column towers) have no room for a codename — it
@@ -930,9 +1055,10 @@ function DraggableAssetCell({
       }}
       {...(dragDisabled ? {} : attributes)}
       {...(dragDisabled ? {} : listeners)}
-      className={`group relative m-px flex min-w-0 overflow-hidden rounded border border-border/80 bg-gradient-to-b from-[#272e37] to-[#1d232b] text-[10px] text-text ${
+      onClick={bodyTap}
+      className={`group relative m-px flex min-w-0 overflow-hidden rounded border bg-gradient-to-b from-[#272e37] to-[#1d232b] text-[10px] text-text ${
         dragDisabled ? "" : "cursor-grab active:cursor-grabbing"
-      } ${isSelected ? "ring-2 ring-accent" : ""}`}
+      } ${isPlacing ? "border-accent ring-2 ring-accent ring-offset-1 ring-offset-bg" : "border-border/80"} ${isSelected && !isPlacing ? "ring-2 ring-accent" : ""}`}
       title={`${asset.codename} — ${asset.name}`}
     >
       {/* Left accent stripe — category colour, runs the full height. */}
@@ -1950,10 +2076,18 @@ function StorageStrip({
   storages,
   unboxed,
   onAssetClick,
+  isTouch,
+  placingId,
+  onSelectForPlace,
+  onTapPlace,
 }: {
   storages: StorageBox[];
   unboxed: StorageItem[];
   onAssetClick: (id: string) => void;
+  isTouch: boolean;
+  placingId: string | null;
+  onSelectForPlace: (asset: { id: string; codename: string }) => void;
+  onTapPlace: (target: PlacementTarget) => void;
 }) {
   return (
     <Panel>
@@ -1973,9 +2107,24 @@ function StorageStrip({
       </div>
       <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
         {storages.map((s) => (
-          <DroppableStorageBox key={s.id} storage={s} onAssetClick={onAssetClick} />
+          <DroppableStorageBox
+            key={s.id}
+            storage={s}
+            onAssetClick={onAssetClick}
+            isTouch={isTouch}
+            placingId={placingId}
+            onSelectForPlace={onSelectForPlace}
+            onTapPlace={onTapPlace}
+          />
         ))}
-        <DroppableUnboxedBin assets={unboxed} onAssetClick={onAssetClick} />
+        <DroppableUnboxedBin
+          assets={unboxed}
+          onAssetClick={onAssetClick}
+          isTouch={isTouch}
+          placingId={placingId}
+          onSelectForPlace={onSelectForPlace}
+          onTapPlace={onTapPlace}
+        />
         {storages.length === 0 && unboxed.length === 0 && (
           <p className="col-span-full px-3 py-6 text-center text-[12px] text-faint">
             No off-rack inventory yet.
@@ -1989,22 +2138,33 @@ function StorageStrip({
 function DroppableStorageBox({
   storage,
   onAssetClick,
+  isTouch,
+  placingId,
+  onSelectForPlace,
+  onTapPlace,
 }: {
   storage: StorageBox;
   onAssetClick: (id: string) => void;
+  isTouch: boolean;
+  placingId: string | null;
+  onSelectForPlace: (asset: { id: string; codename: string }) => void;
+  onTapPlace: (target: PlacementTarget) => void;
 }) {
+  const target: PlacementTarget = { kind: "storage", storageId: storage.id };
   const { isOver, setNodeRef } = useDroppable({
     id: `storage:${storage.id}`,
-    data: { kind: "storage", storageId: storage.id } satisfies PlacementTarget,
+    data: target,
   });
+  const placing = placingId != null;
   return (
     <div
       ref={setNodeRef}
+      onClick={placing ? () => onTapPlace(target) : undefined}
       className={`rounded-md border p-3 transition-colors ${
-        isOver
+        isOver || placing
           ? "border-accent bg-accent/10"
           : "border-border bg-panel-2"
-      }`}
+      } ${placing ? "cursor-pointer" : ""}`}
     >
       <div className="flex items-baseline justify-between">
         <Link
@@ -2022,7 +2182,14 @@ function DroppableStorageBox({
       ) : (
         <ul className="mt-2 flex flex-wrap gap-1">
           {storage.assets.map((a) => (
-            <DraggableStorageChip key={a.id} asset={a} onClick={onAssetClick} />
+            <DraggableStorageChip
+              key={a.id}
+              asset={a}
+              onClick={onAssetClick}
+              isTouch={isTouch}
+              isPlacing={placingId === a.id}
+              onSelectForPlace={onSelectForPlace}
+            />
           ))}
         </ul>
       )}
@@ -2033,22 +2200,33 @@ function DroppableStorageBox({
 function DroppableUnboxedBin({
   assets,
   onAssetClick,
+  isTouch,
+  placingId,
+  onSelectForPlace,
+  onTapPlace,
 }: {
   assets: StorageItem[];
   onAssetClick: (id: string) => void;
+  isTouch: boolean;
+  placingId: string | null;
+  onSelectForPlace: (asset: { id: string; codename: string }) => void;
+  onTapPlace: (target: PlacementTarget) => void;
 }) {
+  const target: PlacementTarget = { kind: "storage", storageId: null };
   const { isOver, setNodeRef } = useDroppable({
     id: "storage:null",
-    data: { kind: "storage", storageId: null } satisfies PlacementTarget,
+    data: target,
   });
+  const placing = placingId != null;
   return (
     <div
       ref={setNodeRef}
+      onClick={placing ? () => onTapPlace(target) : undefined}
       className={`rounded-md border border-dashed p-3 transition-colors ${
-        isOver
+        isOver || placing
           ? "border-accent bg-accent/10"
           : "border-border bg-panel-2"
-      }`}
+      } ${placing ? "cursor-pointer" : ""}`}
     >
       <div className="flex items-baseline justify-between">
         <span className="text-[12px] font-bold text-text-dim">Unboxed</span>
@@ -2063,7 +2241,14 @@ function DroppableUnboxedBin({
       {assets.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-1">
           {assets.map((a) => (
-            <DraggableStorageChip key={a.id} asset={a} onClick={onAssetClick} />
+            <DraggableStorageChip
+              key={a.id}
+              asset={a}
+              onClick={onAssetClick}
+              isTouch={isTouch}
+              isPlacing={placingId === a.id}
+              onSelectForPlace={onSelectForPlace}
+            />
           ))}
         </ul>
       )}
@@ -2074,9 +2259,15 @@ function DroppableUnboxedBin({
 function DraggableStorageChip({
   asset,
   onClick,
+  isTouch,
+  isPlacing,
+  onSelectForPlace,
 }: {
   asset: StorageItem;
   onClick: (id: string) => void;
+  isTouch: boolean;
+  isPlacing: boolean;
+  onSelectForPlace: (asset: { id: string; codename: string }) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `storage-chip:${asset.id}`,
@@ -2131,8 +2322,18 @@ function DraggableStorageChip({
         ref={setNodeRef}
         {...attributes}
         {...listeners}
+        onClick={
+          isTouch
+            ? (e) => {
+                e.stopPropagation();
+                onSelectForPlace({ id: asset.id, codename: asset.codename });
+              }
+            : undefined
+        }
         style={{ opacity: isDragging ? 0.35 : 1 }}
-        className="flex cursor-grab items-center gap-1 rounded border border-border/50 bg-panel px-1.5 py-0.5 text-[10.5px] text-text hover:border-accent/50 active:cursor-grabbing"
+        className={`flex cursor-grab items-center gap-1 rounded border bg-panel px-1.5 py-0.5 text-[10.5px] text-text hover:border-accent/50 active:cursor-grabbing ${
+          isPlacing ? "border-accent ring-1 ring-accent" : "border-border/50"
+        }`}
       >
         <span
           aria-hidden
