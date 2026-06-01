@@ -24,6 +24,10 @@ model User {
   displayName  String?
   role           Role     @default(MEMBER)
   isInitialAdmin Boolean  @default(false)
+  // Per-user rack-diagram view preferences (issue 4): hidePorts, hideNames,
+  // hideBays, imageMode, etc. JSON so it follows the user across devices without
+  // being shared between users.
+  diagramPrefs   Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -102,6 +106,11 @@ model Asset {
   soldPrice               Decimal?  @db.Decimal(10, 2)
   notes                   String?
   imagePath               String?
+
+  // Image-render mode (issue 4): a per-face image sized to the asset's U-space,
+  // shown when the diagram is in image mode. Null → placeholder block fallback.
+  rackRenderFrontPath String?
+  rackRenderRearPath  String?
 
   // common stat-tracking
   maxPowerDrawWatts Int?
@@ -213,6 +222,7 @@ model Asset {
   psus         Psu[]
   images       AssetImage[]
   pciSlots     PciSlot[]
+  faceplateAnnotations FaceplateAnnotation[]
   connectionsA Connection[]        @relation("AEnd")
   connectionsB Connection[]        @relation("BEnd")
 
@@ -409,8 +419,19 @@ model PortGroup {
   portType   PortType
   portSpeed  String? // "1G", "10G", "100G"
   poePerPort Int? // watts
-  side       DeviceSide @default(LEFT) // which side of the chassis this strip sits on
+  side       DeviceSide @default(LEFT) // coarse fallback; faceplate editor uses grid fields below
   sortOrder  Int        @default(0)
+
+  // Faceplate editor layout (issue 5). All nullable → fall back to the
+  // category-default render when unset. face pins the group to a rack face;
+  // gridRow/gridCol place its top-left cell; rows/columns shape the port matrix;
+  // hiddenPorts is a JSON array of port numbers to omit from the render.
+  face        FaceSide? // FRONT / REAR
+  gridRow     Int?
+  gridCol     Int?
+  rows        Int?
+  columns     Int?
+  hiddenPorts Json?
 
   aEndConnections Connection[] @relation("AEndPort")
   bEndConnections Connection[] @relation("BEndPort")
@@ -420,6 +441,29 @@ enum DeviceSide {
   LEFT
   CENTER
   RIGHT
+}
+
+// Free-form annotations placed on the faceplate grid by the editor (issue 5):
+// custom text labels and blank spacer cells that reserve space.
+enum AnnotationKind {
+  TEXT
+  SPACER
+}
+
+model FaceplateAnnotation {
+  id        String         @id @default(cuid())
+  asset     Asset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId   String
+  face      FaceSide       @default(FRONT)
+  kind      AnnotationKind
+  text      String?
+  gridRow   Int?
+  gridCol   Int?
+  rowSpan   Int            @default(1)
+  colSpan   Int            @default(1)
+  sortOrder Int            @default(0)
+
+  @@index([assetId])
 }
 
 enum FaceOrientation {
@@ -462,6 +506,14 @@ model OutletGroup {
   surgeProtected Boolean    @default(true)
   side           DeviceSide @default(LEFT)
   sortOrder      Int        @default(0)
+
+  // Faceplate editor layout (issue 5) — see PortGroup for semantics.
+  face        FaceSide?
+  gridRow     Int?
+  gridCol     Int?
+  rows        Int?
+  columns     Int?
+  hiddenPorts Json?
 
   aEndConnections Connection[] @relation("AEndOutlet")
   bEndConnections Connection[] @relation("BEndOutlet")
@@ -636,6 +688,10 @@ model Psu {
   assetId       String
   sortOrder     Int            @default(0)
   side          DeviceSide     @default(LEFT)
+  // Faceplate editor placement (issue 5) — null = category default.
+  face          FaceSide?
+  gridRow       Int?
+  gridCol       Int?
   wattage       Int?
   portCount     Int            @default(1)
   state         LifecycleState @default(IN_USE)
