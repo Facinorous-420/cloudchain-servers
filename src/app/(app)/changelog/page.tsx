@@ -2,6 +2,30 @@ import { Panel } from "@/components/ui/panel";
 
 const CHANGELOG: { version: string; date: string; entries: string[] }[] = [
   {
+    version: "v1.1.0",
+    date: "2026-06-01",
+    entries: [
+      // ── Rack diagram ─────────────────────────────────────────────────────────
+      "View filters on the topology page: hide names, hide ports, hide drive bays — saved per-user and carried across devices",
+      "Image-render mode: each asset can render a per-face image sized to its U-space (with a placeholder block when none is set); drag and inspect move to corner handles in this mode",
+      "Per-face rack-render image upload on the asset form, blocked until rack height is set, with a live preview of the image scaled into the item's U-space",
+      "Faceplate layout editor: set each port/outlet group's face, rows × columns, and show/hide individual ports, with a live faceplate preview that mirrors the diagram",
+      "Rack UPS/PDU units now show a PWR INLET zone (their power feed) in addition to POWER OUT",
+      "Narrow single-column rack items now show just a status dot (full name on hover / in the inspector) instead of a clipped letter",
+      // ── Hardware tracking ────────────────────────────────────────────────────
+      "NVMe risers: define a riser's M.2 slot count, then mount or create NVMe drives into its slots from the drive form, the topology inspector, or the riser's own detail page",
+      "Drive placement is now keyed by bay zone, so drives in a riser are correctly attributed to the server the riser is installed in",
+      "PCIe slot editor: the 'install from inventory' list and the create-new type/size options are now filtered to cards that physically fit the selected slot; changing a slot's size resets its pending card; creating an NVMe riser inline can define its M.2 slots and drives",
+      "Components carry a structured connector size (x1–x16, M.2 lengths) for slot-fit matching",
+      // ── Forms & UX ───────────────────────────────────────────────────────────
+      "Editing any item: a validation error no longer wipes the other fields you changed — your entries are preserved",
+      "Creating an asset from a preset now carries the preset's image into the new asset",
+      "Mobile: list pages fit the screen (secondary columns collapse) with no sideways scrolling",
+      "Mobile topology: tap a device then tap a slot or storage box to move it — no more fiddly drag-and-drop on touch",
+      "List-page multi-select checkboxes now match the app's dark theme",
+    ],
+  },
+  {
     version: "v1.0.0",
     date: "2026-05-29",
     entries: [

@@ -1685,6 +1685,9 @@ function AssetFaceContent({
               heightU={asset.rackUnits ?? 1}
               batteryBacked={g.batteryBacked}
               surgeProtected={g.surgeProtected}
+              rows={g.rows}
+              columns={g.columns}
+              hidden={g.hiddenPorts}
               onInspect={onInspect}
             />
           </Zone>
@@ -1977,6 +1980,9 @@ function OutletGrid({
   batteryBacked,
   surgeProtected,
   onInspect,
+  rows: rowsProp,
+  columns: colsProp,
+  hidden,
 }: {
   groupId: string;
   count: number;
@@ -1985,18 +1991,29 @@ function OutletGrid({
   batteryBacked: boolean;
   surgeProtected: boolean;
   onInspect: (target: string) => void;
+  rows?: number | null;
+  columns?: number | null;
+  hidden?: number[] | null;
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hidePorts) return null;
   if (count <= 0) return null;
   // Overhead: ~24px (margins+borders+zone-title+padding). sz=8 for 1U fits 2 rows (8+3+8=19px ≤ ~19px available).
   const sz = Math.max(6, Math.min(Math.floor((heightU * U_PX - 24) / 2), 16));
-  const per = Math.ceil(count / 2);
-  const slots = Array.from({ length: count }, (_, i) => i + 1);
+  const hiddenSet = new Set(hidden ?? []);
+  const slots = Array.from({ length: count }, (_, i) => i + 1).filter(
+    (n) => !hiddenSet.has(n),
+  );
+  if (slots.length === 0) return null;
+  const per =
+    colsProp && colsProp > 0
+      ? colsProp
+      : rowsProp && rowsProp > 0
+        ? Math.ceil(slots.length / rowsProp)
+        : Math.ceil(slots.length / 2);
   const rows: number[][] = [];
-  for (let r = 0; r < 2; r++) {
-    const row = slots.slice(r * per, (r + 1) * per);
-    if (row.length > 0) rows.push(row);
+  for (let i = 0; i < slots.length; i += per) {
+    rows.push(slots.slice(i, i + per));
   }
   const connectedSet = new Set(connectedOutlets);
   const icon = batteryBacked ? "B" : surgeProtected ? "~" : null;

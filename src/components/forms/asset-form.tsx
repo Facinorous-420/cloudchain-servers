@@ -1355,6 +1355,7 @@ function FaceplateLayoutControls({
   rows,
   columns,
   hidden,
+  showFace = true,
   onChange,
 }: {
   count: number;
@@ -1362,6 +1363,7 @@ function FaceplateLayoutControls({
   rows?: number | null;
   columns?: number | null;
   hidden?: number[] | null;
+  showFace?: boolean;
   onChange: (patch: {
     face?: string | null;
     rows?: number | null;
@@ -1385,17 +1387,19 @@ function FaceplateLayoutControls({
   return (
     <div className="col-span-full flex flex-col gap-2 border-t border-border/50 pt-2">
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="Face">
-          <Select
-            className="w-28"
-            value={face ?? ""}
-            onChange={(e) => onChange({ face: e.target.value || null })}
-          >
-            <option value="">Default</option>
-            <option value="FRONT">Front</option>
-            <option value="REAR">Rear</option>
-          </Select>
-        </Field>
+        {showFace && (
+          <Field label="Face">
+            <Select
+              className="w-28"
+              value={face ?? ""}
+              onChange={(e) => onChange({ face: e.target.value || null })}
+            >
+              <option value="">Default</option>
+              <option value="FRONT">Front</option>
+              <option value="REAR">Rear</option>
+            </Select>
+          </Field>
+        )}
         <Field label="Rows">
           <TextInput
             type="number"
@@ -1920,6 +1924,7 @@ function OutletGroupEditor({
             rows={group.rows}
             columns={group.columns}
             hidden={group.hiddenPorts}
+            showFace={false}
             onChange={(patch) => update(i, patch as Partial<OutletGroupInput>)}
           />
         </div>
