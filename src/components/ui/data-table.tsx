@@ -157,7 +157,7 @@ export function DataTable<T>({
                   type="checkbox"
                   checked={allChecked}
                   onChange={toggleAll}
-                  className="cursor-pointer accent-accent"
+                  className="ui-checkbox cursor-pointer"
                   aria-label="Select all"
                 />
               </th>
@@ -217,7 +217,7 @@ export function DataTable<T>({
                       type="checkbox"
                       checked={selectedIds.has(getRowKey(row))}
                       onChange={() => toggleRow(getRowKey(row))}
-                      className="cursor-pointer accent-accent"
+                      className="ui-checkbox cursor-pointer"
                     />
                   </td>
                 )}

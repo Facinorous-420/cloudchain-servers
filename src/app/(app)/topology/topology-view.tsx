@@ -916,6 +916,10 @@ function DraggableAssetCell({
   });
   const isOneU = (asset.rackUnits ?? 1) <= 1;
   const isReversed = asset.faceOrientation === "FRONT_REAR" && asset.rackFace == null;
+  // Narrow items (single-column towers) have no room for a codename — it
+  // truncates to ~1 letter. Show just the status dot; the full name stays on
+  // the cell tooltip and in the inspector.
+  const isNarrow = asset.formFactor !== "RACK" && (asset.columnSpan ?? 1) <= 1;
 
   return (
     <div
@@ -944,10 +948,19 @@ function DraggableAssetCell({
           onInspect(`asset:${asset.id}`);
         }}
         title="Click for asset details"
-        className={`flex ${asset.formFactor === "TOWER" ? "w-[80px] min-w-[32px]" : "w-[124px] min-w-[50px]"} shrink cursor-pointer flex-col justify-center border-r border-border/80 bg-bg/30 pl-2.5 pr-2 text-left hover:bg-accent/10 ${
-          isOneU ? "" : "py-1"
-        }`}
+        className={`flex shrink cursor-pointer flex-col justify-center border-r border-border/80 bg-bg/30 text-left hover:bg-accent/10 ${
+          isNarrow
+            ? "w-[22px] min-w-[18px] items-center px-0"
+            : `${asset.formFactor === "TOWER" ? "w-[80px] min-w-[32px]" : "w-[124px] min-w-[50px]"} pl-2.5 pr-2`
+        } ${isOneU || isNarrow ? "" : "py-1"}`}
       >
+        {isNarrow ? (
+          <span
+            aria-hidden
+            className={`inline-block h-2 w-2 rounded-full ${asset.state === "IN_USE" ? "bg-status-green shadow-[0_0_5px_var(--color-status-green)]" : "bg-faint"}`}
+          />
+        ) : (
+          <>
         <span className="flex items-center gap-1.5">
           <span
             aria-hidden
@@ -979,6 +992,8 @@ function DraggableAssetCell({
           <span className="mt-0.5 text-[8px] text-faint">
             ⟵ Rear-mounted
           </span>
+        )}
+          </>
         )}
       </button>
       <div className="flex min-w-[48px] flex-1 items-stretch gap-0 overflow-hidden px-1.5 py-0.5">
@@ -1273,19 +1288,41 @@ function AssetFaceContent({
   }
   if (cat === "UPS" || cat === "PDU") {
     if (asset.formFactor === "TOWER") return <TowerConnSummary asset={asset} />;
+    // Rack UPS/PDU units have a physical power inlet (the cord feeding them),
+    // just like switches/firewalls. Render it as a clickable inlet before the
+    // POWER OUT outlets so its supply connection can be documented.
+    const inletZone = (
+      <Zone
+        title="PWR INLET"
+        titleClassName={cat === "UPS" ? "text-cat-ups" : "text-cat-pdu"}
+      >
+        <PsuGrid
+          assetId={asset.id}
+          psus={asset.psus}
+          psuCount={Math.max(1, asset.psuCount ?? 1)}
+          connectedPsuOrders={asset.connectedPsuOrders}
+          heightU={asset.rackUnits ?? 1}
+          onInspect={onInspect}
+        />
+      </Zone>
+    );
     if (asset.outletGroups.length === 0)
       return (
-        <Zone
-          title="POWER OUT"
-          titleClassName={
-            cat === "UPS" ? "text-cat-ups" : "text-cat-pdu"
-          }
-        >
-          <p className="text-[8px] text-faint">No outlets</p>
-        </Zone>
+        <>
+          {inletZone}
+          <Zone
+            title="POWER OUT"
+            titleClassName={
+              cat === "UPS" ? "text-cat-ups" : "text-cat-pdu"
+            }
+          >
+            <p className="text-[8px] text-faint">No outlets</p>
+          </Zone>
+        </>
       );
     return (
       <>
+        {inletZone}
         {asset.outletGroups.map((g) => (
           <Zone
             key={g.id}
