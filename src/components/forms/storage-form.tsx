@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { emptyFormState, type FormState } from "@/lib/form-state";
+import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
+import { usePreservedForm } from "@/lib/use-preserved-form";
 import { Field, FieldSet, Textarea, TextInput } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
@@ -24,8 +24,11 @@ export function StorageForm({
   storage?: StorageFormData;
   submitLabel: string;
 }) {
-  const [state, formAction, isPending] = useActionState(action, emptyFormState);
-  const data = storage ?? EMPTY;
+  const { state, formAction, isPending, submittedValues } = usePreservedForm(
+    action,
+    emptyFormState,
+  );
+  const data = mergedDefaults(storage ?? EMPTY, submittedValues);
   const err = (n: string) => state.fieldErrors?.[n]?.[0];
 
   return (

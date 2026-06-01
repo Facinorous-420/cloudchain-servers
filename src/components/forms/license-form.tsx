@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { emptyFormState, type FormState } from "@/lib/form-state";
+import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
+import { usePreservedForm } from "@/lib/use-preserved-form";
 import { RENEWAL_PERIODS, RENEWAL_PERIOD_LABELS } from "@/lib/enums";
 import {
   Field,
@@ -58,8 +58,11 @@ export function LicenseForm({
   assets: { id: string; codename: string }[];
   submitLabel: string;
 }) {
-  const [state, formAction, isPending] = useActionState(action, emptyFormState);
-  const data = license ?? EMPTY;
+  const { state, formAction, isPending, submittedValues } = usePreservedForm(
+    action,
+    emptyFormState,
+  );
+  const data = mergedDefaults(license ?? EMPTY, submittedValues);
   const assigned = new Set(data.assignedAssetIds);
   const err = (name: string) => state.fieldErrors?.[name]?.[0];
 

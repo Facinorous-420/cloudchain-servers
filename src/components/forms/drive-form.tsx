@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState, useMemo } from "react";
-import { emptyFormState, type FormState } from "@/lib/form-state";
+import { useState, useMemo } from "react";
+import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
+import { usePreservedForm } from "@/lib/use-preserved-form";
 import { DRIVE_KINDS, DRIVE_SIZES } from "@/lib/enums";
 import { LIFECYCLE_STATES, enumLabel } from "@/lib/enums";
 import {
@@ -104,9 +105,12 @@ export function DriveForm({
   submitLabel: string;
   prefill?: DrivePrefill;
 }) {
-  const [state, formAction, isPending] = useActionState(action, emptyFormState);
+  const { state, formAction, isPending, submittedValues } = usePreservedForm(
+    action,
+    emptyFormState,
+  );
   const base = drive ?? EMPTY;
-  const data: DriveFormData = drive
+  const baseData: DriveFormData = drive
     ? base
     : {
         ...base,
@@ -116,6 +120,8 @@ export function DriveForm({
           purchasedFromUrl: prefill.purchasedFromUrl,
         }),
       };
+  // Restore user-entered values after a validation error (React resets the form).
+  const data = mergedDefaults(baseData, submittedValues);
   const [lifecycleState, setLifecycleState] = useState(data.state);
   const showSoldFields = lifecycleState === "SOLD" || lifecycleState === "JUNKED";
   const [size, setSize] = useState(data.size);

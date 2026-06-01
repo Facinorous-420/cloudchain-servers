@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { emptyFormState, type FormState } from "@/lib/form-state";
+import { useState } from "react";
+import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
+import { usePreservedForm } from "@/lib/use-preserved-form";
 import { LIFECYCLE_STATES, enumLabel } from "@/lib/enums";
 import { Field, FieldSet, Select, Textarea, TextInput } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
@@ -48,8 +49,11 @@ export function ConsumableForm({
   consumable?: ConsumableFormData;
   submitLabel: string;
 }) {
-  const [state, formAction, isPending] = useActionState(action, emptyFormState);
-  const data = consumable ?? EMPTY;
+  const { state, formAction, isPending, submittedValues } = usePreservedForm(
+    action,
+    emptyFormState,
+  );
+  const data = mergedDefaults(consumable ?? EMPTY, submittedValues);
   const [lifecycleState, setLifecycleState] = useState(data.state);
   const err = (name: string) => state.fieldErrors?.[name]?.[0];
 

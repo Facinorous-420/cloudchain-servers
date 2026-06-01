@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { emptyFormState, type FormState } from "@/lib/form-state";
+import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
+import { usePreservedForm } from "@/lib/use-preserved-form";
 import {
   Field,
   FieldSet,
@@ -46,8 +46,11 @@ export function ApplicationForm({
   hosts: { id: string; codename: string }[];
   submitLabel: string;
 }) {
-  const [state, formAction, isPending] = useActionState(action, emptyFormState);
-  const data = application ?? EMPTY;
+  const { state, formAction, isPending, submittedValues } = usePreservedForm(
+    action,
+    emptyFormState,
+  );
+  const data = mergedDefaults(application ?? EMPTY, submittedValues);
   const err = (name: string) => state.fieldErrors?.[name]?.[0];
 
   return (

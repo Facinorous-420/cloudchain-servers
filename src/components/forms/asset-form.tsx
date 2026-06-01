@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { emptyFormState, type FormState } from "@/lib/form-state";
+import { useState } from "react";
+import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
+import { usePreservedForm } from "@/lib/use-preserved-form";
 import type { BayZoneInput } from "@/lib/schemas/asset";
 import type { PortGroupInput } from "@/lib/schemas/port-group";
 import type { OutletGroupInput } from "@/lib/schemas/outlet-group";
@@ -213,8 +214,11 @@ export function AssetForm({
   submitLabel: string;
   pciInventory?: PciInventoryItem[];
 }) {
-  const [state, formAction, isPending] = useActionState(action, emptyFormState);
-  const data = asset ?? EMPTY;
+  const { state, formAction, isPending, submittedValues } = usePreservedForm(
+    action,
+    emptyFormState,
+  );
+  const data = mergedDefaults(asset ?? EMPTY, submittedValues);
   const [lifecycleState, setLifecycleState] = useState(data.state);
   const showSoldFields = lifecycleState === "SOLD" || lifecycleState === "JUNKED";
   const [category, setCategory] = useState(data.category);

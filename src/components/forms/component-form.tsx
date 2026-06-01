@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { emptyFormState, type FormState } from "@/lib/form-state";
+import { useState } from "react";
+import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
+import { usePreservedForm } from "@/lib/use-preserved-form";
 import {
   COMPONENT_TYPES,
   LIFECYCLE_STATES,
@@ -129,10 +130,13 @@ export function ComponentForm({
   submitLabel: string;
   prefill?: PrefillData;
 }) {
-  const [state, formAction, isPending] = useActionState(action, emptyFormState);
+  const { state, formAction, isPending, submittedValues } = usePreservedForm(
+    action,
+    emptyFormState,
+  );
   const base = component ?? EMPTY;
   // Merge prefill into base (only for new components — skip when editing)
-  const data: ComponentFormData = component
+  const baseData: ComponentFormData = component
     ? base
     : {
         ...base,
@@ -144,6 +148,8 @@ export function ComponentForm({
           purchasedFromUrl: prefill.purchasedFromUrl,
         }),
       };
+  // Restore user-entered values after a validation error (React resets the form).
+  const data = mergedDefaults(baseData, submittedValues);
   const [type, setType] = useState(data.type);
   const [lifecycleState, setLifecycleState] = useState(data.state);
   const showSoldFields = lifecycleState === "SOLD" || lifecycleState === "JUNKED";

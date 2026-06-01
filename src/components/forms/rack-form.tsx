@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { emptyFormState, type FormState } from "@/lib/form-state";
+import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
+import { usePreservedForm } from "@/lib/use-preserved-form";
 import type { Suggestions } from "@/lib/suggestions";
 import {
   CheckboxField,
@@ -64,8 +64,11 @@ export function RackForm({
   suggestions: Suggestions;
   submitLabel: string;
 }) {
-  const [state, formAction, isPending] = useActionState(action, emptyFormState);
-  const data = rack ?? EMPTY;
+  const { state, formAction, isPending, submittedValues } = usePreservedForm(
+    action,
+    emptyFormState,
+  );
+  const data = mergedDefaults(rack ?? EMPTY, submittedValues);
   const err = (n: string) => state.fieldErrors?.[n]?.[0];
 
   const field = (

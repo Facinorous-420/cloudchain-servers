@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { emptyFormState, type FormState } from "@/lib/form-state";
+import { useState } from "react";
+import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
+import { usePreservedForm } from "@/lib/use-preserved-form";
 import { LIFECYCLE_STATES, enumLabel } from "@/lib/enums";
 import {
   Field,
@@ -72,8 +73,11 @@ export function BatteryForm({
   storages: { id: string; name: string }[];
   submitLabel: string;
 }) {
-  const [state, formAction, isPending] = useActionState(action, emptyFormState);
-  const data = battery ?? EMPTY;
+  const { state, formAction, isPending, submittedValues } = usePreservedForm(
+    action,
+    emptyFormState,
+  );
+  const data = mergedDefaults(battery ?? EMPTY, submittedValues);
   const [lifecycleState, setLifecycleState] = useState(data.state);
   const showSoldFields = lifecycleState === "SOLD" || lifecycleState === "JUNKED";
   const err = (name: string) => state.fieldErrors?.[name]?.[0];

@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
-import { emptyFormState, type FormState } from "@/lib/form-state";
+import { useMemo, useState } from "react";
+import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
+import { usePreservedForm } from "@/lib/use-preserved-form";
 import { Field, FieldSet, Textarea, TextInput } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -303,8 +304,14 @@ export function ConnectionForm({
   defaultType?: string;
   globalServiceLoopInches?: number;
 }) {
-  const [state, formAction, isPending] = useActionState(action, emptyFormState);
-  const data = connection ?? { ...EMPTY, type: defaultType };
+  const { state, formAction, isPending, submittedValues } = usePreservedForm(
+    action,
+    emptyFormState,
+  );
+  const data = mergedDefaults(
+    connection ?? { ...EMPTY, type: defaultType },
+    submittedValues,
+  );
   const err = (name: string) => state.fieldErrors?.[name]?.[0];
 
   const [type, setType] = useState(data.type);
