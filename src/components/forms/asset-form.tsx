@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { TabBar } from "@/components/ui/tab-bar";
 import { emptyFormState, mergedDefaults, type FormState } from "@/lib/form-state";
 import { usePreservedForm } from "@/lib/use-preserved-form";
 import type { BayZoneInput } from "@/lib/schemas/asset";
@@ -221,6 +222,68 @@ export type PciInventoryItem = {
   cardSize?: string | null;
 };
 
+// The edit form is split into tabs to keep the long form manageable. Each
+// section keeps its inputs mounted (toggled with `display:contents`/`hidden`)
+// so switching tabs never clears in-progress edits or inline-editor state.
+type AssetTab = "general" | "size" | "hardware" | "rendering";
+const ASSET_TAB_ORDER: AssetTab[] = ["general", "size", "hardware", "rendering"];
+
+// Maps a server-validation field name to the tab that owns it, so a submit
+// error can flag (and jump to) the right tab. Anything unmapped → General.
+const FIELD_TAB: Record<string, AssetTab> = {
+  formFactor: "size",
+  rackUnits: "size",
+  heightInches: "size",
+  depthInches: "size",
+  widthInches: "size",
+  requiresSupport: "size",
+  rackFace: "size",
+  faceOrientation: "size",
+  patchPanelType: "size",
+  chassis: "hardware",
+  mainboard: "hardware",
+  raidController: "hardware",
+  operatingSystem: "hardware",
+  biosVersion: "hardware",
+  builtInEthernetCount: "hardware",
+  builtInSfpCount: "hardware",
+  psuCount: "hardware",
+  builtInPortsSide: "hardware",
+  extras: "hardware",
+  cpus: "hardware",
+  rams: "hardware",
+  pciSlots: "hardware",
+  psus: "hardware",
+  bayZones: "hardware",
+  portGroups: "hardware",
+  outletGroups: "hardware",
+  managementType: "hardware",
+  poeBudgetWatts: "hardware",
+  throughputGbps: "hardware",
+  maxConcurrentConnections: "hardware",
+  vaRating: "hardware",
+  wattsRating: "hardware",
+  estimatedRuntimeMinutes: "hardware",
+  surgeProtectedEthernetCount: "hardware",
+  amperage: "hardware",
+  pduType: "hardware",
+  kvmChannelCount: "hardware",
+  supportedProtocols: "hardware",
+  wifiStandard: "hardware",
+  maxThroughputMbps: "hardware",
+  bandSupport: "hardware",
+  poeInputType: "hardware",
+  placement: "hardware",
+  maxLoadLbs: "hardware",
+  ventilated: "hardware",
+  drawerType: "hardware",
+  pulloutDepthInches: "hardware",
+  purpose: "hardware",
+  annotations: "rendering",
+  rackRenderFrontPath: "rendering",
+  rackRenderRearPath: "rendering",
+};
+
 export function AssetForm({
   action,
   asset,
@@ -290,6 +353,25 @@ export function AssetForm({
 
   const err = (name: string) => state.fieldErrors?.[name]?.[0];
 
+  // Tab state. Sections stay mounted; we just toggle visibility.
+  const [activeTab, setActiveTab] = useState<AssetTab>("general");
+  const [renderTab, setRenderTab] = useState<"image" | "faceplate">("image");
+
+  // Which tabs currently contain a validation error (for the error dot).
+  const errorTabs = new Set<AssetTab>();
+  for (const f of Object.keys(state.fieldErrors ?? {})) {
+    errorTabs.add(FIELD_TAB[f] ?? "general");
+  }
+  // On a fresh submit error, jump to the first tab that has one.
+  useEffect(() => {
+    const errs = state.fieldErrors;
+    if (!errs) return;
+    const tabs = new Set<AssetTab>();
+    for (const f of Object.keys(errs)) tabs.add(FIELD_TAB[f] ?? "general");
+    const first = ASSET_TAB_ORDER.find((t) => tabs.has(t));
+    if (first) setActiveTab(first);
+  }, [state]);
+
   const isServer = category === "SERVER";
   const isSwitch = category === "SWITCH";
   const isPatchPanel = category === "PATCH_PANEL";
@@ -309,6 +391,7 @@ export function AssetForm({
   const hasPowerStats =
     isServerLike || isSwitch || isGwOrFw || isAp || isUps;
   const hasFirmware = isSwitch || isGwOrFw || isUps || isAp;
+  const faceplateAvailable = isServerLike || hasPortGroups || hasOutletGroups || isKvm;
 
   // Plain render helper (not a nested component) so re-renders don't remount
   // and clear the uncontrolled inputs.
@@ -388,6 +471,19 @@ export function AssetForm({
 
       {category !== "" && (
         <>
+          <TabBar
+            tabs={[
+              { id: "general", label: "General", badge: errorTabs.has("general") },
+              { id: "size", label: "Size", badge: errorTabs.has("size") },
+              { id: "hardware", label: "Hardware", badge: errorTabs.has("hardware") },
+              { id: "rendering", label: "Rendering", badge: errorTabs.has("rendering") },
+            ]}
+            active={activeTab}
+            onChange={(id) => setActiveTab(id as AssetTab)}
+          />
+
+          {/* ── General ───────────────────────────────────────────────── */}
+          <div className={activeTab === "general" ? "contents" : "hidden"}>
           <FieldSet legend="Identity">
             <div className="grid grid-cols-2 gap-4">
               <Field
@@ -489,7 +585,10 @@ export function AssetForm({
               </Select>
             </Field>
           </FieldSet>
+          </div>
 
+          {/* ── Size ──────────────────────────────────────────────────── */}
+          <div className={activeTab === "size" ? "contents" : "hidden"}>
           <FieldSet legend="Physical form">
             <div className="grid grid-cols-2 gap-4">
               <Field
@@ -644,7 +743,10 @@ export function AssetForm({
               hint="True for gear that can't float in mid-rack — must rest on the floor or another item."
             />
           </FieldSet>
+          </div>
 
+          {/* ── General (cont.) ───────────────────────────────────────── */}
+          <div className={activeTab === "general" ? "contents" : "hidden"}>
           <FieldSet legend="Storage">
             <Field
               label="Storage"
@@ -665,7 +767,10 @@ export function AssetForm({
               </Select>
             </Field>
           </FieldSet>
+          </div>
 
+          {/* ── Hardware ──────────────────────────────────────────────── */}
+          <div className={activeTab === "hardware" ? "contents" : "hidden"}>
           {isServerLike && (
             <FieldSet legend="Server specification">
               <div className="grid grid-cols-2 gap-4">
@@ -1003,7 +1108,10 @@ export function AssetForm({
               </Field>
             </FieldSet>
           )}
+          </div>
 
+          {/* ── General (cont.) ───────────────────────────────────────── */}
+          <div className={activeTab === "general" ? "contents" : "hidden"}>
           {hasPowerStats && (
             <FieldSet legend="Power & firmware">
               <div className="grid grid-cols-2 gap-4">
@@ -1017,7 +1125,10 @@ export function AssetForm({
               </div>
             </FieldSet>
           )}
+          </div>
 
+          {/* ── Rendering ─────────────────────────────────────────────── */}
+          <div className={activeTab === "rendering" ? "contents" : "hidden"}>
           <FieldSet legend="Images">
             <MultiImageUpload
               defaultImages={(() => {
@@ -1030,6 +1141,25 @@ export function AssetForm({
             />
           </FieldSet>
 
+          {/* Sub-tab switch between the two render editors. When the asset has
+              no faceplate, only the rack-render image editor is shown. */}
+          {faceplateAvailable && (
+            <TabBar
+              size="sm"
+              tabs={[
+                { id: "image", label: "Rack render" },
+                { id: "faceplate", label: "Faceplate layout" },
+              ]}
+              active={renderTab}
+              onChange={(id) => setRenderTab(id as "image" | "faceplate")}
+            />
+          )}
+
+          <div
+            className={
+              !faceplateAvailable || renderTab === "image" ? "contents" : "hidden"
+            }
+          >
           <FieldSet legend="Rack render (image mode)">
             <p className="mb-2 text-[11.5px] text-text-dim">
               Optional images shown when the topology view is in image mode. Each
@@ -1050,8 +1180,10 @@ export function AssetForm({
               />
             </div>
           </FieldSet>
+          </div>
 
-          {(isServerLike || hasPortGroups || hasOutletGroups || isKvm) && (
+          {faceplateAvailable && (
+            <div className={renderTab === "faceplate" ? "contents" : "hidden"}>
             <FieldSet legend="Faceplate layout (diagram positions)">
               <FaceplateDesigner
                 meta={{
@@ -1080,13 +1212,18 @@ export function AssetForm({
                 onBuiltIn={setBuiltIn}
               />
             </FieldSet>
+            </div>
           )}
+          </div>
 
+          {/* ── General (cont.) ───────────────────────────────────────── */}
+          <div className={activeTab === "general" ? "contents" : "hidden"}>
           <FieldSet legend="Notes">
             <Field label="Notes" htmlFor="notes">
               <Textarea id="notes" name="notes" defaultValue={data.notes} />
             </Field>
           </FieldSet>
+          </div>
         </>
       )}
 
