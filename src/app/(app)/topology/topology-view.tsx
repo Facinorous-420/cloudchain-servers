@@ -61,6 +61,9 @@ function useDiagramPrefs(): DiagramPrefs {
 
 // 1U = 40px — tall enough that 48-port 1U switches fit 2 port rows without clipping.
 const U_PX = 40;
+// Faceplate elements render a touch under true scale so a block's zone title
+// has room above it without overlapping the ports/bays.
+const FACEPLATE_RENDER_SCALE = 0.88;
 
 // Category accent for the 3px left stripe on each device card.
 const CATEGORY_STRIPE: Record<string, string> = {
@@ -1474,14 +1477,14 @@ function CustomFaceplate({
       {items.map((it) => (
         <div
           key={it.key}
-          className="absolute"
+          className="absolute flex flex-col"
           style={{
             left: `${((it.col - 1) / FACE_COLS) * 100}%`,
             top: `${((it.row - 1) / Math.max(1, heightU)) * 100}%`,
           }}
         >
           {it.title && (
-            <div className="pointer-events-none absolute -top-[8px] left-0 truncate text-left text-[7px] font-black uppercase tracking-[0.5px] text-faint">
+            <div className="pointer-events-none mb-px max-w-full truncate text-left text-[7px] font-black uppercase leading-none tracking-[0.5px] text-faint">
               {it.title}
             </div>
           )}
@@ -2018,10 +2021,11 @@ export function DriveBayGrid({
   // Physical mode (faceplate designer / custom layout): each bay is drawn at its
   // real size (LFF ≈ 4"×1") scaled by pxPerInch.
   if (pxPerInch) {
+    const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
     const el = bayElementInches(zone.driveSize);
-    const ew = Math.max(8, Math.round(el.w * pxPerInch));
-    const eh = Math.max(6, Math.round(el.h * pxPerInch));
-    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * pxPerInch));
+    const ew = Math.max(8, Math.round(el.w * ppi));
+    const eh = Math.max(6, Math.round(el.h * ppi));
+    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
     return (
       <div className="grid" style={{ gridTemplateColumns: `repeat(${perRow}, ${ew}px)`, gap }}>
         {bays.map((n) => {
@@ -2143,10 +2147,11 @@ export function PortGrid({
   const connectedSet = new Set(connectedPorts);
   const shortLabel = portType ? (portLabels[portType] ?? DEFAULT_PORT_TYPE_LABELS[portType] ?? portType.slice(0, 3)) : "";
   if (pxPerInch) {
+    const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
     const el = portElementInches(portType);
-    const ew = Math.max(5, Math.round(el.w * pxPerInch));
-    const eh = Math.max(5, Math.round(el.h * pxPerInch));
-    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * pxPerInch));
+    const ew = Math.max(5, Math.round(el.w * ppi));
+    const eh = Math.max(5, Math.round(el.h * ppi));
+    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
     return (
       <div className="grid" style={{ gridTemplateColumns: `repeat(${per}, ${ew}px)`, gap }}>
         {slots.map((n) => {
@@ -2249,8 +2254,9 @@ export function OutletGrid({
   const connectedSet = new Set(connectedOutlets);
   const icon = batteryBacked ? "B" : surgeProtected ? "~" : null;
   if (pxPerInch) {
-    const d = Math.max(6, Math.round(ELEMENT_INCHES.outlet.w * pxPerInch));
-    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * pxPerInch));
+    const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
+    const d = Math.max(6, Math.round(ELEMENT_INCHES.outlet.w * ppi));
+    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
     return (
       <div className="grid" style={{ gridTemplateColumns: `repeat(${per}, ${d}px)`, gap }}>
         {slots.map((n) => {
@@ -2373,10 +2379,11 @@ export function NicGrid({
   const sz = Math.min(portSize(heightU) + 2, 15);
   const showLabel = sz >= 10;
   if (pxPerInch) {
+    const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
     const el = ELEMENT_INCHES.port;
-    const ew = Math.max(5, Math.round(el.w * pxPerInch));
-    const eh = Math.max(5, Math.round(el.h * pxPerInch));
-    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * pxPerInch));
+    const ew = Math.max(5, Math.round(el.w * ppi));
+    const eh = Math.max(5, Math.round(el.h * ppi));
+    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
     const big = eh >= 11;
     return (
       <div className="flex" style={{ gap }}>
