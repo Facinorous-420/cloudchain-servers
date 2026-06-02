@@ -14,7 +14,9 @@ import {
   blockSpan,
   rectsOverlap,
   clampCell,
+  resolveColumns,
   type BlockSpec,
+  ELEMENT_INCHES,
 } from "@/lib/faceplate";
 import { Button } from "@/components/ui/button";
 import type { DiagramAsset } from "@/app/(app)/topology/rack-diagram";
@@ -47,10 +49,15 @@ export type FaceplateMeta = {
   patchPanelType: string | null;
 };
 
-const PX_PER_INCH = 34;
-const ROW_H = Math.round(1.75 * PX_PER_INCH); // designer px per U
+// Designer is shown at a comfortable zoom; elements still render at their real
+// physical size (inches × PX_PER_INCH). The footprint maths is pixel-independent
+// so the diagram (at its own scale) lays things out identically.
+const PX_PER_INCH = 32;
+const U_IN = 1.75;
+const ROW_H = Math.round(U_IN * PX_PER_INCH); // designer px per U
 const RACK_WIDTH_INCHES = 19;
 const PREVIEW_U = 40; // preview px per U (matches the topology diagram)
+const PREVIEW_PPI = PREVIEW_U / U_IN;
 const noop = () => {};
 
 type Block = {
@@ -64,7 +71,7 @@ type Block = {
   node: React.ReactNode;
   annotationKind?: "TEXT" | "SPACER" | "DIVIDER";
   text?: string | null;
-  shape?: { count: number; columns: number | null }; // bay/port/outlet only
+  shape?: { count: number; columns: number | null; cols: number }; // bay/port/outlet only
 };
 
 export function FaceplateDesigner({
@@ -100,6 +107,9 @@ export function FaceplateDesigner({
   const isTower = meta.formFactor === "TOWER";
   const rackUnits = Math.max(0, Math.floor(meta.rackUnits));
   const ready = rackUnits > 0 && (!isTower || meta.widthInches > 0);
+  const faceWidthInches = isTower
+    ? meta.widthInches || RACK_WIDTH_INCHES
+    : meta.widthInches || RACK_WIDTH_INCHES;
 
   const asset = buildPreviewAsset(meta, {
     bayZones,
@@ -143,23 +153,23 @@ export function FaceplateDesigner({
   // Build the renderable block list with footprints.
   const blocks: Block[] = [];
   asset.bayZones.forEach((z, i) => {
-    const spec: BlockSpec = { kind: "bay", count: z.bayCount, columns: z.columns, rackUnits: rackUnits || 1 };
+    const spec: BlockSpec = { kind: "bay", count: z.bayCount, columns: z.columns, driveSize: z.driveSize, rackUnits: rackUnits || 1 };
     blocks.push({
       id: `bay:${i}`, source: "bay", index: i,
       face: (z.faceSide === "REAR" ? "REAR" : "FRONT") as FaceId,
-      row: z.gridRow ?? null, col: z.gridCol ?? null, span: blockSpan(spec),
-      shape: { count: z.bayCount, columns: z.columns ?? null },
-      node: <DriveBayGrid zone={z} heightU={rackUnits || 1} onInspect={noop} fill />,
+      row: z.gridRow ?? null, col: z.gridCol ?? null, span: blockSpan(spec, faceWidthInches),
+      shape: { count: z.bayCount, columns: z.columns ?? null, cols: resolveColumns(spec, faceWidthInches) },
+      node: <DriveBayGrid zone={z} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} />,
     });
   });
   asset.portGroups.forEach((g, i) => {
-    const spec: BlockSpec = { kind: "port", count: g.portCount, columns: g.columns, rows: g.rows, rackUnits: rackUnits || 1 };
+    const spec: BlockSpec = { kind: "port", count: g.portCount, columns: g.columns, rows: g.rows, portType: g.portType, rackUnits: rackUnits || 1 };
     blocks.push({
       id: `port:${i}`, source: "port", index: i,
       face: ((g.face as FaceId) ?? "FRONT") as FaceId,
-      row: g.gridRow ?? null, col: g.gridCol ?? null, span: blockSpan(spec),
-      shape: { count: g.portCount, columns: g.columns ?? null },
-      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={[]} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={rackUnits || 1} onInspect={noop} fill />,
+      row: g.gridRow ?? null, col: g.gridCol ?? null, span: blockSpan(spec, faceWidthInches),
+      shape: { count: g.portCount, columns: g.columns ?? null, cols: resolveColumns(spec, faceWidthInches) },
+      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={[]} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} />,
     });
   });
   asset.outletGroups.forEach((g, i) => {
@@ -167,9 +177,9 @@ export function FaceplateDesigner({
     blocks.push({
       id: `outlet:${i}`, source: "outlet", index: i,
       face: ((g.face as FaceId) ?? "REAR") as FaceId,
-      row: g.gridRow ?? null, col: g.gridCol ?? null, span: blockSpan(spec),
-      shape: { count: g.outletCount, columns: g.columns ?? null },
-      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={[]} heightU={rackUnits || 1} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={noop} fill />,
+      row: g.gridRow ?? null, col: g.gridCol ?? null, span: blockSpan(spec, faceWidthInches),
+      shape: { count: g.outletCount, columns: g.columns ?? null, cols: resolveColumns(spec, faceWidthInches) },
+      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={[]} heightU={rackUnits || 1} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={noop} pxPerInch={PX_PER_INCH} />,
     });
   });
   psus.forEach((p, i) => {
@@ -177,8 +187,15 @@ export function FaceplateDesigner({
       id: `psu:${i}`, source: "psu", index: i,
       face: ((p.face as FaceId) ?? "REAR") as FaceId,
       row: p.gridRow ?? null, col: p.gridCol ?? null,
-      span: blockSpan({ kind: "psu", rackUnits: rackUnits || 1 }),
-      node: <span className="flex h-full w-full items-center justify-center rounded-[2px] border border-status-green/60 bg-status-green/15 text-[9px] font-bold text-status-green">⚡</span>,
+      span: blockSpan({ kind: "psu", rackUnits: rackUnits || 1 }, faceWidthInches),
+      node: (
+        <span
+          className="flex items-center justify-center rounded-[2px] border border-status-green/60 bg-status-green/15 text-[9px] font-bold text-status-green"
+          style={{ width: ELEMENT_INCHES.psu.w * PX_PER_INCH, height: ELEMENT_INCHES.psu.h * PX_PER_INCH }}
+        >
+          ⚡ PSU
+        </span>
+      ),
     });
   });
   if (builtIn.ethernet > 0 || builtIn.sfp > 0) {
@@ -186,8 +203,8 @@ export function FaceplateDesigner({
       id: "builtin:0", source: "builtin", index: 0,
       face: ((builtIn.face as FaceId) ?? "REAR") as FaceId,
       row: builtIn.gridRow, col: builtIn.gridCol,
-      span: blockSpan({ kind: "builtin", ethernet: builtIn.ethernet, sfp: builtIn.sfp, rackUnits: rackUnits || 1 }),
-      node: <NicGrid assetId="preview" ethernet={builtIn.ethernet} sfp={builtIn.sfp} heightU={rackUnits || 1} onInspect={noop} fill />,
+      span: blockSpan({ kind: "builtin", ethernet: builtIn.ethernet, sfp: builtIn.sfp, rackUnits: rackUnits || 1 }, faceWidthInches),
+      node: <NicGrid assetId="preview" ethernet={builtIn.ethernet} sfp={builtIn.sfp} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} />,
     });
   }
   annotations.forEach((a, i) => {
@@ -195,9 +212,9 @@ export function FaceplateDesigner({
       id: `anno:${i}`, source: "anno", index: i,
       face: ((a.face as FaceId) ?? "FRONT") as FaceId,
       row: a.gridRow ?? null, col: a.gridCol ?? null,
-      span: blockSpan({ kind: "annotation", annotationKind: a.kind, rackUnits: rackUnits || 1 }),
+      span: blockSpan({ kind: "annotation", annotationKind: a.kind, rackUnits: rackUnits || 1 }, faceWidthInches),
       annotationKind: a.kind, text: a.text,
-      node: <AnnotationVisual kind={a.kind} text={a.text} />,
+      node: <AnnotationVisual kind={a.kind} text={a.text} heightPx={a.kind === "DIVIDER" ? rackUnits * ROW_H : ROW_H} />,
     });
   });
 
@@ -213,8 +230,7 @@ export function FaceplateDesigner({
     );
   }
 
-  const gridWidthInches = isTower ? meta.widthInches : meta.widthInches || RACK_WIDTH_INCHES;
-  const cellW = Math.round((gridWidthInches * PX_PER_INCH) / FACE_COLS);
+  const cellW = Math.round((faceWidthInches * PX_PER_INCH) / FACE_COLS);
   const gridWidthPx = cellW * FACE_COLS;
   const gridHeightPx = rackUnits * ROW_H;
 
@@ -324,7 +340,7 @@ export function FaceplateDesigner({
         <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-accent">Preview in rack</p>
         <div className="flex flex-wrap gap-4">
           {(["FRONT", "REAR"] as FaceId[]).map((face) => (
-            <PreviewRack key={face} asset={asset} face={face} rackUnits={rackUnits} widthPx={gridWidthPx} />
+            <PreviewRack key={face} asset={asset} face={face} rackUnits={rackUnits} faceWidthInches={faceWidthInches} />
           ))}
         </div>
       </div>
@@ -332,17 +348,21 @@ export function FaceplateDesigner({
   );
 }
 
-function AnnotationVisual({ kind, text }: { kind: string; text: string | null | undefined }) {
+function AnnotationVisual({
+  kind,
+  text,
+  heightPx,
+}: {
+  kind: string;
+  text: string | null | undefined;
+  heightPx: number;
+}) {
   if (kind === "DIVIDER")
-    return (
-      <span className="flex h-full w-full items-center justify-center">
-        <span className="h-full w-px bg-text-dim/70" />
-      </span>
-    );
+    return <span className="block w-px bg-text-dim/70" style={{ height: heightPx }} />;
   if (kind === "SPACER")
-    return <span className="block h-full w-full rounded-[2px] border border-dashed border-border/60" />;
+    return <span className="block h-4 w-4 rounded-[2px] border border-dashed border-border/60" />;
   return (
-    <span className="flex h-full w-full items-center justify-center overflow-hidden px-0.5 text-center text-[9px] font-bold uppercase leading-tight tracking-[0.4px] text-text-dim">
+    <span className="whitespace-nowrap text-[9px] font-bold uppercase leading-tight tracking-[0.4px] text-text-dim">
       {text || "Label"}
     </span>
   );
@@ -379,7 +399,7 @@ function ChipControls({
     return null;
   }
   if (block.shape) {
-    const cur = block.shape.columns ?? block.span.w;
+    const cur = block.shape.columns ?? block.shape.cols;
     return (
       <span className="flex items-center gap-0.5 text-[8px] text-text-dim" onPointerDown={(e) => e.stopPropagation()}>
         <button type="button" className="px-0.5 hover:text-accent" onClick={() => onColumns(block.source, block.index, cur - PX_PER_COL_STEP)} title="Fewer columns">−</button>
@@ -409,10 +429,7 @@ function TrayChip({
       className="group/chip relative flex cursor-grab flex-col gap-0.5 rounded border border-accent/40 bg-bg/70 p-1 active:cursor-grabbing"
       title="Drag onto a face"
     >
-      <div
-        className="pointer-events-none overflow-hidden"
-        style={{ width: Math.min(block.span.w * 18, 200), height: block.span.h * 18 }}
-      >
+      <div className="pointer-events-none flex max-w-[240px] items-center justify-center overflow-hidden">
         {block.node}
       </div>
       <div className="flex items-center justify-between gap-1">
@@ -461,15 +478,15 @@ function PreviewRack({
   asset,
   face,
   rackUnits,
-  widthPx,
+  faceWidthInches,
 }: {
   asset: DiagramAsset;
   face: FaceId;
   rackUnits: number;
-  widthPx: number;
+  faceWidthInches: number;
 }) {
   const totalU = rackUnits + 1;
-  const innerWidth = Math.min(widthPx, 640);
+  const innerWidth = Math.round(faceWidthInches * PREVIEW_PPI);
   return (
     <div>
       <p className="mb-0.5 text-[9px] font-bold uppercase tracking-wide text-text-dim">{face}</p>
@@ -496,7 +513,7 @@ function PreviewRack({
             style={{ height: rackUnits * PREVIEW_U }}
           >
             <div className="flex w-full items-stretch gap-0 overflow-hidden px-1 py-0.5">
-              <AssetFaceContent asset={asset} face={face} onInspect={noop} />
+              <AssetFaceContent asset={asset} face={face} onInspect={noop} pxPerInch={PREVIEW_PPI} />
             </div>
           </div>
         </div>

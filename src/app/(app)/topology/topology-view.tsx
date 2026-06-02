@@ -41,7 +41,14 @@ import {
   type DiagramPrefs,
   DEFAULT_DIAGRAM_PREFS,
 } from "@/lib/diagram-prefs";
-import { FACE_COLS, blockSpan } from "@/lib/faceplate";
+import {
+  FACE_COLS,
+  U_INCHES,
+  bayElementInches,
+  portElementInches,
+  ELEMENT_INCHES,
+  ELEMENT_GAP_INCHES,
+} from "@/lib/faceplate";
 
 // View-pref context so the deep render tree (cards, port/bay grids) can read the
 // active filters without threading props through every level.
@@ -1372,18 +1379,20 @@ function CustomFaceplate({
   asset,
   face,
   onInspect,
+  pxPerInch,
 }: {
   asset: DiagramAsset;
   face: "FRONT" | "REAR";
   onInspect: (target: string) => void;
+  pxPerInch?: number;
 }) {
   const heightU = asset.rackUnits ?? 1;
+  const ppi = pxPerInch ?? U_PX / U_INCHES;
+  const dividerHeightPx = U_INCHES * heightU * ppi; // full device height
   type Placed = {
     key: string;
     row: number;
     col: number;
-    w: number;
-    h: number;
     title?: string;
     node: React.ReactNode;
   };
@@ -1392,37 +1401,34 @@ function CustomFaceplate({
   asset.bayZones.forEach((z) => {
     if ((z.faceSide === "REAR" ? "REAR" : "FRONT") !== face) return;
     if (z.gridRow == null || z.gridCol == null) return;
-    const { w, h } = blockSpan({ kind: "bay", count: z.bayCount, columns: z.columns, rackUnits: heightU });
     items.push({
-      key: `bay-${z.id}`, row: z.gridRow, col: z.gridCol, w, h, title: z.name,
-      node: <DriveBayGrid zone={z} heightU={heightU} onInspect={onInspect} fill />,
+      key: `bay-${z.id}`, row: z.gridRow, col: z.gridCol, title: z.name,
+      node: <DriveBayGrid zone={z} heightU={heightU} onInspect={onInspect} pxPerInch={ppi} />,
     });
   });
   asset.portGroups.forEach((g) => {
     if ((g.face ?? "FRONT") !== face) return;
     if (g.gridRow == null || g.gridCol == null) return;
-    const { w, h } = blockSpan({ kind: "port", count: g.portCount, columns: g.columns, rows: g.rows, rackUnits: heightU });
     items.push({
-      key: `port-${g.id}`, row: g.gridRow, col: g.gridCol, w, h,
+      key: `port-${g.id}`, row: g.gridRow, col: g.gridCol,
       title: g.name ?? PORT_TYPE_LABELS[g.portType as (typeof PORT_TYPES)[number]],
-      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={g.connectedPorts} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={heightU} onInspect={onInspect} fill />,
+      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={g.connectedPorts} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={heightU} onInspect={onInspect} pxPerInch={ppi} />,
     });
   });
   asset.outletGroups.forEach((g) => {
     if ((g.face ?? "REAR") !== face) return;
     if (g.gridRow == null || g.gridCol == null) return;
-    const { w, h } = blockSpan({ kind: "outlet", count: g.outletCount, columns: g.columns, rows: g.rows, rackUnits: heightU });
     items.push({
-      key: `outlet-${g.id}`, row: g.gridRow, col: g.gridCol, w, h,
+      key: `outlet-${g.id}`, row: g.gridRow, col: g.gridCol,
       title: g.name ?? g.outletType ?? "POWER OUT",
-      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={g.connectedOutlets} heightU={heightU} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={onInspect} fill />,
+      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={g.connectedOutlets} heightU={heightU} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={onInspect} pxPerInch={ppi} />,
     });
   });
   asset.psus.forEach((p) => {
     if ((p.face ?? "REAR") !== face) return;
     if (p.gridRow == null || p.gridCol == null) return;
     items.push({
-      key: `psu-${p.id}`, row: p.gridRow, col: p.gridCol, w: 1, h: 1,
+      key: `psu-${p.id}`, row: p.gridRow, col: p.gridCol,
       node: <PsuGrid assetId={asset.id} psus={[p]} psuCount={1} connectedPsuOrders={asset.connectedPsuOrders} heightU={heightU} onInspect={onInspect} />,
     });
   });
@@ -1432,50 +1438,48 @@ function CustomFaceplate({
     asset.builtInGridCol != null &&
     ((asset.builtInEthernetCount ?? 0) > 0 || (asset.builtInSfpCount ?? 0) > 0)
   ) {
-    const { w, h } = blockSpan({ kind: "builtin", ethernet: asset.builtInEthernetCount ?? 0, sfp: asset.builtInSfpCount ?? 0, rackUnits: heightU });
     items.push({
-      key: "builtin", row: asset.builtInGridRow, col: asset.builtInGridCol, w, h, title: "NICS",
-      node: <NicGrid assetId={asset.id} ethernet={asset.builtInEthernetCount ?? 0} sfp={asset.builtInSfpCount ?? 0} heightU={heightU} onInspect={onInspect} fill />,
+      key: "builtin", row: asset.builtInGridRow, col: asset.builtInGridCol, title: "NICS",
+      node: <NicGrid assetId={asset.id} ethernet={asset.builtInEthernetCount ?? 0} sfp={asset.builtInSfpCount ?? 0} heightU={heightU} onInspect={onInspect} pxPerInch={ppi} />,
     });
   }
   (asset.annotations ?? []).forEach((a, i) => {
     if ((a.face ?? "FRONT") !== face) return;
     if (a.gridRow == null || a.gridCol == null) return;
     items.push({
-      key: `anno-${i}`, row: a.gridRow, col: a.gridCol, w: 1, h: 1,
+      key: `anno-${i}`, row: a.gridRow, col: a.gridCol,
       node:
         a.kind === "DIVIDER" ? (
-          <span className="flex h-full w-full items-center justify-center"><span className="h-full w-px bg-text-dim/70" /></span>
+          <span className="block w-px bg-text-dim/70" style={{ height: dividerHeightPx }} />
         ) : a.kind === "SPACER" ? (
-          <span className="block h-full w-full" />
+          <span className="block h-3 w-3" />
         ) : (
-          <span className="flex h-full w-full items-center justify-center overflow-hidden px-0.5 text-center text-[8px] font-bold uppercase leading-tight tracking-[0.3px] text-text-dim">{a.text}</span>
+          <span className="whitespace-nowrap text-[8px] font-bold uppercase leading-tight tracking-[0.3px] text-text-dim">{a.text}</span>
         ),
     });
   });
 
   if (items.length === 0) return <PlainLabel>{face}</PlainLabel>;
 
-  // Place each block at its exact grid cell, spanning its footprint.
+  // Position each block at its grid-cell origin (fraction of the face) and let
+  // it render at its real physical size.
   return (
-    <div
-      className="grid h-full w-full"
-      style={{ gridTemplateColumns: `repeat(${FACE_COLS}, 1fr)`, gridTemplateRows: `repeat(${Math.max(1, heightU)}, 1fr)` }}
-    >
+    <div className="relative h-full w-full">
       {items.map((it) => (
         <div
           key={it.key}
-          style={{ gridColumn: `${it.col} / span ${it.w}`, gridRow: `${it.row} / span ${it.h}` }}
-          className="relative flex min-h-0 min-w-0 items-center justify-center overflow-hidden"
+          className="absolute"
+          style={{
+            left: `${((it.col - 1) / FACE_COLS) * 100}%`,
+            top: `${((it.row - 1) / Math.max(1, heightU)) * 100}%`,
+          }}
         >
           {it.title && (
-            <div className="pointer-events-none absolute left-0 top-0 max-w-full truncate text-left text-[7px] font-black uppercase tracking-[0.7px] text-faint">
+            <div className="pointer-events-none absolute -top-[8px] left-0 truncate text-left text-[7px] font-black uppercase tracking-[0.5px] text-faint">
               {it.title}
             </div>
           )}
-          <div className="flex h-full w-full items-center justify-center overflow-hidden">
-            {it.node}
-          </div>
+          {it.node}
         </div>
       ))}
     </div>
@@ -1486,10 +1490,12 @@ export function AssetFaceContent({
   asset,
   face,
   onInspect,
+  pxPerInch,
 }: {
   asset: DiagramAsset;
   face: "FRONT" | "REAR";
   onInspect: (target: string) => void;
+  pxPerInch?: number;
 }) {
   const cat = asset.category;
   const isOneU = (asset.rackUnits ?? 1) <= 1;
@@ -1512,7 +1518,7 @@ export function AssetFaceContent({
   // If the faceplate designer placed any block on this face, render the custom
   // layout instead of the category auto-layout.
   if (hasCustomFaceplate(asset, effectiveFace)) {
-    return <CustomFaceplate asset={asset} face={effectiveFace} onInspect={onInspect} />;
+    return <CustomFaceplate asset={asset} face={effectiveFace} onInspect={onInspect} pxPerInch={pxPerInch} />;
   }
 
   if (effectiveFace === "FRONT") {
@@ -1972,12 +1978,12 @@ export function DriveBayGrid({
   zone,
   heightU,
   onInspect,
-  fill,
+  pxPerInch,
 }: {
   zone: DiagramAsset["bayZones"][number];
   heightU: number;
   onInspect: (target: string) => void;
-  fill?: boolean;
+  pxPerInch?: number;
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hideBays) return null;
@@ -1999,18 +2005,15 @@ export function DriveBayGrid({
             zone.bayCount /
               Math.max(1, Math.floor((heightU * U_PX - 22) / (size.h + 3))),
           );
-  // Fill mode (faceplate designer / custom layout): bays fill their allocated
-  // area to true scale, instead of fixed pixel sizes.
-  if (fill) {
-    const nRows = Math.max(1, Math.ceil(zone.bayCount / perRow));
+  // Physical mode (faceplate designer / custom layout): each bay is drawn at its
+  // real size (LFF ≈ 4"×1") scaled by pxPerInch.
+  if (pxPerInch) {
+    const el = bayElementInches(zone.driveSize);
+    const ew = Math.max(8, Math.round(el.w * pxPerInch));
+    const eh = Math.max(6, Math.round(el.h * pxPerInch));
+    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * pxPerInch));
     return (
-      <div
-        className="grid h-full w-full gap-[2px]"
-        style={{
-          gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${nRows}, minmax(0, 1fr))`,
-        }}
-      >
+      <div className="grid" style={{ gridTemplateColumns: `repeat(${perRow}, ${ew}px)`, gap }}>
         {bays.map((n) => {
           const drive = drivesByBay.get(n);
           return (
@@ -2018,14 +2021,10 @@ export function DriveBayGrid({
               key={n}
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onInspect(`bay:${zone.id}:${n}`);
-              }}
-              className={`flex min-h-0 min-w-0 cursor-pointer items-center justify-center rounded-[2px] border text-[7px] font-black leading-none ${
-                drive
-                  ? "border-[#52d062] bg-cat-server text-bg"
-                  : "border-[#3a424d] bg-[#2a313b] text-faint"
+              onClick={(e) => { e.stopPropagation(); onInspect(`bay:${zone.id}:${n}`); }}
+              style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 9)) }}
+              className={`flex cursor-pointer items-center justify-center rounded-[2px] border font-black leading-none ${
+                drive ? "border-[#52d062] bg-cat-server text-bg" : "border-[#3a424d] bg-[#2a313b] text-faint"
               }`}
               title={
                 drive
@@ -2033,7 +2032,7 @@ export function DriveBayGrid({
                   : `Bay ${n}: empty — click to add a drive`
               }
             >
-              {drive ? drive.kind : ""}
+              {eh >= 12 ? (drive ? drive.kind : "") : ""}
             </button>
           );
         })}
@@ -2092,7 +2091,7 @@ export function PortGrid({
   rows: rowsProp,
   columns: colsProp,
   hidden,
-  fill,
+  pxPerInch,
 }: {
   groupId: string;
   count: number;
@@ -2103,7 +2102,7 @@ export function PortGrid({
   rows?: number | null;
   columns?: number | null;
   hidden?: number[] | null;
-  fill?: boolean;
+  pxPerInch?: number;
 }) {
   // Hooks first (before any early return) so toggling filters can't change the
   // hook order between renders.
@@ -2133,15 +2132,13 @@ export function PortGrid({
   }
   const connectedSet = new Set(connectedPorts);
   const shortLabel = portType ? (portLabels[portType] ?? DEFAULT_PORT_TYPE_LABELS[portType] ?? portType.slice(0, 3)) : "";
-  if (fill) {
+  if (pxPerInch) {
+    const el = portElementInches(portType);
+    const ew = Math.max(5, Math.round(el.w * pxPerInch));
+    const eh = Math.max(5, Math.round(el.h * pxPerInch));
+    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * pxPerInch));
     return (
-      <div
-        className="grid h-full w-full gap-[2px]"
-        style={{
-          gridTemplateColumns: `repeat(${per}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${rows.length}, minmax(0, 1fr))`,
-        }}
-      >
+      <div className="grid" style={{ gridTemplateColumns: `repeat(${per}, ${ew}px)`, gap }}>
         {slots.map((n) => {
           const connected = connectedSet.has(n);
           return (
@@ -2149,16 +2146,14 @@ export function PortGrid({
               key={n}
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onInspect(`port:${groupId}:${n}`);
-              }}
-              className={`flex min-h-0 min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border text-[7px] font-bold leading-none ${
+              onClick={(e) => { e.stopPropagation(); onInspect(`port:${groupId}:${n}`); }}
+              style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 8)) }}
+              className={`flex cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border font-bold leading-none ${
                 connected ? portTypeClass(portType ?? "ETHERNET") : PORT_EMPTY_CLASS
               }`}
               title={`${portType ?? "Port"} ${n}${connected ? " (connected)" : ""}`}
             >
-              {shortLabel}
+              {eh >= 11 ? shortLabel : ""}
             </button>
           );
         })}
@@ -2207,7 +2202,7 @@ export function OutletGrid({
   rows: rowsProp,
   columns: colsProp,
   hidden,
-  fill,
+  pxPerInch,
 }: {
   groupId: string;
   count: number;
@@ -2219,7 +2214,7 @@ export function OutletGrid({
   rows?: number | null;
   columns?: number | null;
   hidden?: number[] | null;
-  fill?: boolean;
+  pxPerInch?: number;
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hidePorts) return null;
@@ -2243,15 +2238,11 @@ export function OutletGrid({
   }
   const connectedSet = new Set(connectedOutlets);
   const icon = batteryBacked ? "B" : surgeProtected ? "~" : null;
-  if (fill) {
+  if (pxPerInch) {
+    const d = Math.max(6, Math.round(ELEMENT_INCHES.outlet.w * pxPerInch));
+    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * pxPerInch));
     return (
-      <div
-        className="grid h-full w-full place-items-center gap-[2px]"
-        style={{
-          gridTemplateColumns: `repeat(${per}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${rows.length}, minmax(0, 1fr))`,
-        }}
-      >
+      <div className="grid" style={{ gridTemplateColumns: `repeat(${per}, ${d}px)`, gap }}>
         {slots.map((n) => {
           const connected = connectedSet.has(n);
           return (
@@ -2259,16 +2250,14 @@ export function OutletGrid({
               key={n}
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onInspect(`outlet:${groupId}:${n}`);
-              }}
-              className={`flex aspect-square h-full max-h-[22px] cursor-pointer items-center justify-center rounded-full border ${
+              onClick={(e) => { e.stopPropagation(); onInspect(`outlet:${groupId}:${n}`); }}
+              style={{ width: d, height: d }}
+              className={`flex cursor-pointer items-center justify-center rounded-full border ${
                 connected ? "border-[#52d062]/60 bg-status-green/25" : "border-[#3a424d] bg-[#2a313b]"
               }`}
               title={`Outlet ${n}${connected ? " (connected)" : batteryBacked ? " (battery-backed)" : surgeProtected ? " (surge-protected)" : ""}`}
             >
-              {icon && <span className={`text-[6px] font-bold leading-none ${connected ? "text-[#0d1117]" : "text-faint"}`}>{icon}</span>}
+              {icon && d >= 10 && <span className={`text-[6px] font-bold leading-none ${connected ? "text-[#0d1117]" : "text-faint"}`}>{icon}</span>}
             </button>
           );
         })}
@@ -2360,36 +2349,38 @@ export function NicGrid({
   sfp,
   heightU,
   onInspect,
-  fill,
+  pxPerInch,
 }: {
   assetId: string;
   ethernet: number;
   sfp: number;
   heightU: number;
   onInspect: (target: string) => void;
-  fill?: boolean;
+  pxPerInch?: number;
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hidePorts) return null;
   const sz = Math.min(portSize(heightU) + 2, 15);
   const showLabel = sz >= 10;
-  if (fill) {
-    const total = Math.max(1, ethernet + sfp);
+  if (pxPerInch) {
+    const el = ELEMENT_INCHES.port;
+    const ew = Math.max(5, Math.round(el.w * pxPerInch));
+    const eh = Math.max(5, Math.round(el.h * pxPerInch));
+    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * pxPerInch));
+    const big = eh >= 11;
     return (
-      <div
-        className="grid h-full w-full gap-[2px]"
-        style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))`, gridTemplateRows: "1fr" }}
-      >
+      <div className="flex" style={{ gap }}>
         {Array.from({ length: ethernet }, (_, i) => (
           <button
             key={`eth-${i}`}
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onInspect(`nic:${assetId}:eth:${i + 1}`); }}
-            className="flex min-h-0 min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border border-[#3a424d] bg-[#2a313b] text-[7px] font-bold leading-none text-faint"
+            style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 8)) }}
+            className="flex cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border border-[#3a424d] bg-[#2a313b] font-bold leading-none text-faint"
             title={`NIC ${i + 1}`}
           >
-            GbE
+            {big ? "GbE" : ""}
           </button>
         ))}
         {Array.from({ length: sfp }, (_, i) => (
@@ -2398,10 +2389,11 @@ export function NicGrid({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onInspect(`nic:${assetId}:sfp:${i + 1}`); }}
-            className={`flex min-h-0 min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border text-[7px] font-bold leading-none ${PORT_EMPTY_CLASS}`}
+            style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 8)) }}
+            className={`flex cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border font-bold leading-none ${PORT_EMPTY_CLASS}`}
             title={`SFP ${i + 1}`}
           >
-            S+
+            {big ? "S+" : ""}
           </button>
         ))}
       </div>
