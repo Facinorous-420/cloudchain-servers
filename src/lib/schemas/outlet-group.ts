@@ -16,6 +16,8 @@ export const outletGroupSchema = z.object({
   rows: z.number().int().positive().nullable().optional(),
   columns: z.number().int().positive().nullable().optional(),
   hiddenPorts: z.array(z.number().int().positive()).nullable().optional(),
+  gridRow: z.number().int().nonnegative().nullable().optional(),
+  gridCol: z.number().int().nonnegative().nullable().optional(),
 });
 export type OutletGroupInput = z.infer<typeof outletGroupSchema>;
 

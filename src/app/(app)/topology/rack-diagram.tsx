@@ -81,17 +81,33 @@ export type DiagramAsset = {
     portCount: number;
     side: string;
     state: string;
+    face?: string | null;
+    gridRow?: number | null;
+    gridCol?: number | null;
   }[];
   // sort orders (0-based) of PSUs that have an incoming POWER connection
   connectedPsuOrders: number[];
   // channel numbers (1-based) that have a KVM Connection on the A-end
   connectedKvmChannels: number[];
+  // Faceplate designer: built-in NIC strip placement + custom annotations.
+  builtInGridRow?: number | null;
+  builtInGridCol?: number | null;
+  builtInFace?: string | null;
+  annotations?: {
+    face: string;
+    kind: string;
+    text: string | null;
+    gridRow: number | null;
+    gridCol: number | null;
+  }[];
   bayZones: {
     id: string;
     name: string;
     faceSide: string;
     driveSize: string;
     bayCount: number;
+    gridRow?: number | null;
+    gridCol?: number | null;
     drives: {
       id: string;
       name: string;
@@ -112,6 +128,8 @@ export type DiagramAsset = {
     rows?: number | null;
     columns?: number | null;
     hiddenPorts?: number[] | null;
+    gridRow?: number | null;
+    gridCol?: number | null;
     // port numbers (1-based) that have a Connection on them (bEnd for patch panels = front)
     connectedPorts: number[];
     // patch panels only: aEnd connections = rear/permanent side
@@ -129,6 +147,8 @@ export type DiagramAsset = {
     rows?: number | null;
     columns?: number | null;
     hiddenPorts?: number[] | null;
+    gridRow?: number | null;
+    gridCol?: number | null;
     // outlet numbers (1-based) that have a Connection on them
     connectedOutlets: number[];
   }[];

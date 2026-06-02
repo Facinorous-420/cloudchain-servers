@@ -146,6 +146,11 @@ model Asset {
   kvmChannelCount             Int? // KVM
   psuCount                    Int? // SERVER, NUC
 
+  // Faceplate designer placement for the built-in NIC strip (issue 5).
+  builtInGridRow Int?
+  builtInGridCol Int?
+  builtInFace    FaceSide?
+
   // SERVER / NUC server-spec (formerly ServerSpec table — inlined)
   chassis         String?
   mainboard       String?
@@ -278,6 +283,10 @@ model BayZone {
   driveSize   DriveSize
   bayCount    Int
   sortOrder   Int        @default(0)
+  // Faceplate designer placement (issue 5) — grid cell origin on the face;
+  // null = auto-layout.
+  gridRow     Int?
+  gridCol     Int?
   drives      Drive[]
 }
 

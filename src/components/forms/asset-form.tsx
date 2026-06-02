@@ -12,7 +12,9 @@ import type {
   InlinePciSlotInput,
   InlinePsuInput,
   PciNewComponentDraft,
+  FaceplateAnnotationInput,
 } from "@/lib/schemas/inline-components";
+import { FaceplateDesigner, type BuiltInBlock } from "./faceplate-designer";
 import type { Suggestions } from "@/lib/suggestions";
 import {
   ASSET_CATEGORIES,
@@ -63,6 +65,11 @@ export type AssetFormData = {
   imageGallery: string; // JSON: ImageEntry[]
   rackRenderFrontPath: string;
   rackRenderRearPath: string;
+  // Faceplate designer (issue 5)
+  annotations: FaceplateAnnotationInput[];
+  builtInGridRow: string;
+  builtInGridCol: string;
+  builtInFace: string;
   formFactor: string;
   faceOrientation: string;
   rackFace: string;
@@ -144,6 +151,10 @@ const EMPTY: AssetFormData = {
   imageGallery: "[]",
   rackRenderFrontPath: "",
   rackRenderRearPath: "",
+  annotations: [],
+  builtInGridRow: "",
+  builtInGridCol: "",
+  builtInFace: "",
   formFactor: "RACK",
   faceOrientation: "FRONT_FRONT",
   rackFace: "",
@@ -242,6 +253,16 @@ export function AssetForm({
   const [rams, setRams] = useState<InlineRamInput[]>(data.rams);
   const [pciSlots, setPciSlots] = useState<InlinePciSlotInput[]>(data.pciSlots);
   const [psus, setPsus] = useState<InlinePsuInput[]>(data.psus);
+  const [annotations, setAnnotations] = useState<FaceplateAnnotationInput[]>(
+    data.annotations,
+  );
+  const [builtIn, setBuiltIn] = useState<BuiltInBlock>({
+    ethernet: parseInt(data.builtInEthernetCount || "0", 10) || 0,
+    sfp: parseInt(data.builtInSfpCount || "0", 10) || 0,
+    gridRow: data.builtInGridRow ? parseInt(data.builtInGridRow, 10) : null,
+    gridCol: data.builtInGridCol ? parseInt(data.builtInGridCol, 10) : null,
+    face: data.builtInFace || null,
+  });
   const [requiresSupport, setRequiresSupport] = useState(data.requiresSupport);
   const [formFactor, setFormFactor] = useState(data.formFactor);
   const [patchPanelType, setPatchPanelType] = useState(data.patchPanelType || "KEYSTONE");
@@ -999,6 +1020,25 @@ export function AssetForm({
             </div>
           </FieldSet>
 
+          {(isServerLike || hasPortGroups || hasOutletGroups || isKvm) && (
+            <FieldSet legend="Faceplate layout (diagram positions)">
+              <FaceplateDesigner
+                bayZones={bayZones}
+                onBayZones={setBayZones}
+                portGroups={portGroups}
+                onPortGroups={setPortGroups}
+                outletGroups={outletGroups}
+                onOutletGroups={setOutletGroups}
+                psus={psus}
+                onPsus={setPsus}
+                annotations={annotations}
+                onAnnotations={setAnnotations}
+                builtIn={builtIn}
+                onBuiltIn={setBuiltIn}
+              />
+            </FieldSet>
+          )}
+
           <FieldSet legend="Notes">
             <Field label="Notes" htmlFor="notes">
               <Textarea id="notes" name="notes" defaultValue={data.notes} />
@@ -1042,6 +1082,14 @@ export function AssetForm({
         name="psus"
         value={JSON.stringify(isServerLike ? psus : [])}
       />
+      <input
+        type="hidden"
+        name="annotations"
+        value={JSON.stringify(annotations)}
+      />
+      <input type="hidden" name="builtInGridRow" value={builtIn.gridRow ?? ""} />
+      <input type="hidden" name="builtInGridCol" value={builtIn.gridCol ?? ""} />
+      <input type="hidden" name="builtInFace" value={builtIn.face ?? ""} />
 
       {/* Cascade confirm panel — returned by updateAsset when transitioning to
           SOLD/JUNKED with nested items still attached. */}

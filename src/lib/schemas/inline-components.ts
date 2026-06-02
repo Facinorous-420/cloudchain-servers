@@ -84,6 +84,25 @@ export const inlinePsuSchema = z.object({
   state: z.enum(["IN_USE", "STORED", "SOLD", "JUNKED"]).default("IN_USE"),
   manufacturer: z.string().nullable().optional(),
   model: z.string().nullable().optional(),
+  // Faceplate designer placement (issue 5).
+  face: z.enum(["FRONT", "REAR", "INTERIOR"]).nullable().optional(),
+  gridRow: z.number().int().nonnegative().nullable().optional(),
+  gridCol: z.number().int().nonnegative().nullable().optional(),
 });
 export type InlinePsuInput = z.infer<typeof inlinePsuSchema>;
 export const inlinePsusSchema = z.array(inlinePsuSchema);
+
+// Custom text / spacer annotations placed on the faceplate grid (issue 5).
+export const faceplateAnnotationSchema = z.object({
+  id: z.string().optional(),
+  face: z.enum(["FRONT", "REAR", "INTERIOR"]).default("FRONT"),
+  kind: z.enum(["TEXT", "SPACER"]),
+  text: z.string().nullable().optional(),
+  gridRow: z.number().int().nonnegative().nullable().optional(),
+  gridCol: z.number().int().nonnegative().nullable().optional(),
+  rowSpan: z.number().int().positive().default(1),
+  colSpan: z.number().int().positive().default(1),
+  sortOrder: z.number().int().nonnegative().default(0),
+});
+export type FaceplateAnnotationInput = z.infer<typeof faceplateAnnotationSchema>;
+export const faceplateAnnotationsSchema = z.array(faceplateAnnotationSchema);

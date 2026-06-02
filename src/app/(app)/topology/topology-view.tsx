@@ -1350,6 +1350,179 @@ function Zone({
   );
 }
 
+// Does the faceplate designer place any block on this face?
+function hasCustomFaceplate(asset: DiagramAsset, face: "FRONT" | "REAR"): boolean {
+  const onFace = (f: string | null | undefined, def: "FRONT" | "REAR") =>
+    (f ?? def) === face;
+  const placed = (gr?: number | null, gc?: number | null) => gr != null && gc != null;
+  if (asset.bayZones.some((z) => (z.faceSide === "REAR" ? "REAR" : "FRONT") === face && placed(z.gridRow, z.gridCol))) return true;
+  if (asset.portGroups.some((g) => onFace(g.face, "FRONT") && placed(g.gridRow, g.gridCol))) return true;
+  if (asset.outletGroups.some((g) => onFace(g.face, "REAR") && placed(g.gridRow, g.gridCol))) return true;
+  if (asset.psus.some((p) => onFace(p.face, "REAR") && placed(p.gridRow, p.gridCol))) return true;
+  if (onFace(asset.builtInFace, "REAR") && placed(asset.builtInGridRow, asset.builtInGridCol) && ((asset.builtInEthernetCount ?? 0) > 0 || (asset.builtInSfpCount ?? 0) > 0)) return true;
+  if ((asset.annotations ?? []).some((a) => onFace(a.face, "FRONT") && placed(a.gridRow, a.gridCol))) return true;
+  return false;
+}
+
+// Renders an asset face using the hand-designed grid layout: blocks sorted by
+// (gridRow, gridCol) and grouped into rows. Reuses the same grid sub-components
+// as the auto-layout, so filters and connection colouring still apply.
+function CustomFaceplate({
+  asset,
+  face,
+  onInspect,
+}: {
+  asset: DiagramAsset;
+  face: "FRONT" | "REAR";
+  onInspect: (target: string) => void;
+}) {
+  const heightU = asset.rackUnits ?? 1;
+  type Placed = { row: number; col: number; node: React.ReactNode };
+  const items: Placed[] = [];
+
+  asset.bayZones.forEach((z) => {
+    if ((z.faceSide === "REAR" ? "REAR" : "FRONT") !== face) return;
+    if (z.gridRow == null || z.gridCol == null) return;
+    items.push({
+      row: z.gridRow,
+      col: z.gridCol,
+      node: (
+        <Zone key={`bay-${z.id}`} title={z.name}>
+          <DriveBayGrid zone={z} heightU={heightU} onInspect={onInspect} />
+        </Zone>
+      ),
+    });
+  });
+  asset.portGroups.forEach((g) => {
+    if ((g.face ?? "FRONT") !== face) return;
+    if (g.gridRow == null || g.gridCol == null) return;
+    items.push({
+      row: g.gridRow,
+      col: g.gridCol,
+      node: (
+        <Zone key={`port-${g.id}`} title={g.name ?? PORT_TYPE_LABELS[g.portType as (typeof PORT_TYPES)[number]]}>
+          <PortGrid
+            groupId={g.id}
+            count={g.portCount}
+            connectedPorts={g.connectedPorts}
+            portType={g.portType}
+            rows={g.rows}
+            columns={g.columns}
+            hidden={g.hiddenPorts}
+            heightU={heightU}
+            onInspect={onInspect}
+          />
+        </Zone>
+      ),
+    });
+  });
+  asset.outletGroups.forEach((g) => {
+    if ((g.face ?? "REAR") !== face) return;
+    if (g.gridRow == null || g.gridCol == null) return;
+    items.push({
+      row: g.gridRow,
+      col: g.gridCol,
+      node: (
+        <Zone key={`outlet-${g.id}`} title={g.name ?? g.outletType ?? "POWER OUT"}>
+          <OutletGrid
+            groupId={g.id}
+            count={g.outletCount}
+            connectedOutlets={g.connectedOutlets}
+            heightU={heightU}
+            batteryBacked={g.batteryBacked}
+            surgeProtected={g.surgeProtected}
+            rows={g.rows}
+            columns={g.columns}
+            hidden={g.hiddenPorts}
+            onInspect={onInspect}
+          />
+        </Zone>
+      ),
+    });
+  });
+  const placedPsus = asset.psus.filter(
+    (p) => (p.face ?? "REAR") === face && p.gridRow != null && p.gridCol != null,
+  );
+  if (placedPsus.length > 0) {
+    const first = placedPsus[0];
+    items.push({
+      row: first.gridRow ?? 1,
+      col: first.gridCol ?? 1,
+      node: (
+        <Zone key="psu" title="PSU">
+          <PsuGrid
+            assetId={asset.id}
+            psus={placedPsus}
+            psuCount={placedPsus.length}
+            connectedPsuOrders={asset.connectedPsuOrders}
+            heightU={heightU}
+            onInspect={onInspect}
+          />
+        </Zone>
+      ),
+    });
+  }
+  if (
+    (asset.builtInFace ?? "REAR") === face &&
+    asset.builtInGridRow != null &&
+    asset.builtInGridCol != null &&
+    ((asset.builtInEthernetCount ?? 0) > 0 || (asset.builtInSfpCount ?? 0) > 0)
+  ) {
+    items.push({
+      row: asset.builtInGridRow,
+      col: asset.builtInGridCol,
+      node: (
+        <Zone key="builtin" title="NICS">
+          <NicGrid
+            assetId={asset.id}
+            ethernet={asset.builtInEthernetCount ?? 0}
+            sfp={asset.builtInSfpCount ?? 0}
+            heightU={heightU}
+            onInspect={onInspect}
+          />
+        </Zone>
+      ),
+    });
+  }
+  (asset.annotations ?? []).forEach((a, i) => {
+    if ((a.face ?? "FRONT") !== face) return;
+    if (a.gridRow == null || a.gridCol == null) return;
+    items.push({
+      row: a.gridRow,
+      col: a.gridCol,
+      node:
+        a.kind === "TEXT" ? (
+          <div key={`anno-${i}`} className="flex items-center px-1 text-[9px] font-bold uppercase tracking-[0.5px] text-text-dim">
+            {a.text}
+          </div>
+        ) : (
+          <div key={`anno-${i}`} className="w-6" />
+        ),
+    });
+  });
+
+  if (items.length === 0) return <PlainLabel>{face}</PlainLabel>;
+
+  // Group into rows by gridRow, ordered; within a row order by gridCol.
+  const rowKeys = Array.from(new Set(items.map((it) => it.row))).sort((a, b) => a - b);
+  return (
+    <div className="flex flex-1 flex-col justify-center gap-1">
+      {rowKeys.map((rk) => (
+        <div key={rk} className="flex items-stretch gap-0">
+          {items
+            .filter((it) => it.row === rk)
+            .sort((a, b) => a.col - b.col)
+            .map((it, i) => (
+              <div key={i} className="flex">
+                {it.node}
+              </div>
+            ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AssetFaceContent({
   asset,
   face,
@@ -1376,6 +1549,12 @@ function AssetFaceContent({
   const driveBaysOnFace = asset.bayZones.filter((z) =>
     effectiveFace === "FRONT" ? z.faceSide !== "REAR" : z.faceSide === "REAR",
   );
+
+  // If the faceplate designer placed any block on this face, render the custom
+  // layout instead of the category auto-layout.
+  if (hasCustomFaceplate(asset, effectiveFace)) {
+    return <CustomFaceplate asset={asset} face={effectiveFace} onInspect={onInspect} />;
+  }
 
   if (effectiveFace === "FRONT") {
     if (cat === "SERVER" || cat === "NUC" || cat === "SBC") {

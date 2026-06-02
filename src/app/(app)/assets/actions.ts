@@ -38,10 +38,12 @@ import {
   inlineRamsSchema,
   inlinePciSlotsSchema,
   inlinePsusSchema,
+  faceplateAnnotationsSchema,
   type InlineCpuInput,
   type InlineRamInput,
   type InlinePciSlotInput,
   type InlinePsuInput,
+  type FaceplateAnnotationInput,
 } from "@/lib/schemas/inline-components";
 import type { ImageEntry } from "@/components/ui/multi-image-upload";
 
@@ -65,6 +67,12 @@ function assetScalarData(v: AssetFormValues) {
     notes: v.notes,
     rackRenderFrontPath: v.rackRenderFrontPath,
     rackRenderRearPath: v.rackRenderRearPath,
+    builtInGridRow: v.builtInGridRow ?? null,
+    builtInGridCol: v.builtInGridCol ?? null,
+    builtInFace: ((): "FRONT" | "REAR" | "INTERIOR" | null =>
+      v.builtInFace === "FRONT" || v.builtInFace === "REAR" || v.builtInFace === "INTERIOR"
+        ? v.builtInFace
+        : null)(),
     formFactor: v.formFactor,
     faceOrientation: v.faceOrientation,
     rackFace: v.rackFace ?? null,
@@ -115,6 +123,35 @@ function assetScalarData(v: AssetFormValues) {
   };
 }
 
+function psuFace(
+  v: string | null | undefined,
+): "FRONT" | "REAR" | "INTERIOR" | null {
+  return v === "FRONT" || v === "REAR" || v === "INTERIOR" ? v : null;
+}
+
+// Replace an asset's faceplate annotations with the submitted set.
+async function syncFaceplateAnnotations(
+  client: Prisma.TransactionClient,
+  assetId: string,
+  raw: FaceplateAnnotationInput[],
+): Promise<void> {
+  await client.faceplateAnnotation.deleteMany({ where: { assetId } });
+  if (raw.length === 0) return;
+  await client.faceplateAnnotation.createMany({
+    data: raw.map((a, i) => ({
+      assetId,
+      face: psuFace(a.face) ?? "FRONT",
+      kind: a.kind,
+      text: a.text ?? null,
+      gridRow: a.gridRow ?? null,
+      gridCol: a.gridCol ?? null,
+      rowSpan: a.rowSpan,
+      colSpan: a.colSpan,
+      sortOrder: i,
+    })),
+  });
+}
+
 function bayZoneCreateData(zone: BayZoneInput) {
   return {
     name: zone.name,
@@ -122,6 +159,8 @@ function bayZoneCreateData(zone: BayZoneInput) {
     driveSize: zone.driveSize,
     bayCount: zone.bayCount,
     sortOrder: zone.sortOrder,
+    gridRow: zone.gridRow ?? null,
+    gridCol: zone.gridCol ?? null,
   };
 }
 
@@ -138,6 +177,8 @@ function portGroupCreateData(g: PortGroupInput) {
     rows: g.rows ?? null,
     columns: g.columns ?? null,
     hiddenPorts: g.hiddenPorts ?? undefined,
+    gridRow: g.gridRow ?? null,
+    gridCol: g.gridCol ?? null,
   };
 }
 
@@ -154,6 +195,8 @@ function outletGroupCreateData(g: OutletGroupInput) {
     rows: g.rows ?? null,
     columns: g.columns ?? null,
     hiddenPorts: g.hiddenPorts ?? undefined,
+    gridRow: g.gridRow ?? null,
+    gridCol: g.gridCol ?? null,
   };
 }
 
@@ -369,6 +412,14 @@ export async function createAsset(
   if (psus === null) {
     return { fieldErrors: { psus: ["PSU data is invalid"] } };
   }
+  const annotations = parseJsonArray<FaceplateAnnotationInput>(
+    formData,
+    "annotations",
+    faceplateAnnotationsSchema,
+  );
+  if (annotations === null) {
+    return { fieldErrors: { annotations: ["Faceplate annotation data is invalid"] } };
+  }
 
   const values = parsed.data;
   const isServer = values.category === "SERVER";
@@ -418,6 +469,9 @@ export async function createAsset(
                   state: p.state,
                   manufacturer: p.manufacturer ?? null,
                   model: p.model ?? null,
+                  face: psuFace(p.face),
+                  gridRow: p.gridRow ?? null,
+                  gridCol: p.gridCol ?? null,
                 })),
               }
             : undefined,
@@ -471,6 +525,8 @@ export async function createAsset(
         }
       }
     }
+
+    await syncFaceplateAnnotations(prisma, created.id, annotations);
   } catch (error) {
     if (isUniqueCodenameError(error)) {
       return { fieldErrors: { codename: ["Codename is already in use"] } };
@@ -528,6 +584,14 @@ export async function updateAsset(
   const psus = parseJsonArray<InlinePsuInput>(formData, "psus", inlinePsusSchema);
   if (psus === null) {
     return { fieldErrors: { psus: ["PSU data is invalid"] } };
+  }
+  const annotations = parseJsonArray<FaceplateAnnotationInput>(
+    formData,
+    "annotations",
+    faceplateAnnotationsSchema,
+  );
+  if (annotations === null) {
+    return { fieldErrors: { annotations: ["Faceplate annotation data is invalid"] } };
   }
 
   const values = parsed.data;
@@ -822,6 +886,9 @@ export async function updateAsset(
                 state: psu.state,
                 manufacturer: psu.manufacturer ?? null,
                 model: psu.model ?? null,
+                face: psuFace(psu.face),
+                gridRow: psu.gridRow ?? null,
+                gridCol: psu.gridCol ?? null,
               },
             });
           } else {
@@ -835,11 +902,16 @@ export async function updateAsset(
                 state: psu.state,
                 manufacturer: psu.manufacturer ?? null,
                 model: psu.model ?? null,
+                face: psuFace(psu.face),
+                gridRow: psu.gridRow ?? null,
+                gridCol: psu.gridCol ?? null,
               },
             });
           }
         }
       }
+
+      await syncFaceplateAnnotations(tx, id, annotations);
     });
   } catch (error) {
     if (isUniqueCodenameError(error)) {

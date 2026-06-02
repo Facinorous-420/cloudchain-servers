@@ -25,6 +25,9 @@ export const bayZoneSchema = z.object({
   driveSize: z.enum(DRIVE_SIZES),
   bayCount: z.number().int().positive("Bay count must be at least 1"),
   sortOrder: z.number().int().nonnegative().default(0),
+  // Faceplate designer placement (issue 5).
+  gridRow: z.number().int().nonnegative().nullable().optional(),
+  gridCol: z.number().int().nonnegative().nullable().optional(),
 });
 export type BayZoneInput = z.infer<typeof bayZoneSchema>;
 
@@ -90,6 +93,11 @@ export const assetSchema = z.object({
   kvmChannelCount: optionalInt,
   // Server / NUC
   psuCount: optionalInt,
+
+  // Faceplate designer placement for the built-in NIC strip (issue 5).
+  builtInGridRow: optionalInt,
+  builtInGridCol: optionalInt,
+  builtInFace: optionalText,
 
   // Server / NUC spec
   chassis: optionalText,

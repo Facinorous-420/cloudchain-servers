@@ -32,6 +32,7 @@ export default async function EditAssetPage({
           },
         },
         psus: { orderBy: { sortOrder: "asc" } },
+        faceplateAnnotations: { orderBy: { sortOrder: "asc" } },
       },
     }),
     prisma.storage.findMany({
@@ -130,6 +131,8 @@ export default async function EditAssetPage({
       driveSize: z.driveSize,
       bayCount: z.bayCount,
       sortOrder: z.sortOrder,
+      gridRow: z.gridRow,
+      gridCol: z.gridCol,
     })),
     portGroups: asset.portGroups.map((g) => ({
       id: g.id,
@@ -203,7 +206,24 @@ export default async function EditAssetPage({
       state: p.state as "IN_USE" | "STORED" | "SOLD" | "JUNKED",
       manufacturer: p.manufacturer ?? null,
       model: p.model ?? null,
+      face: (p.face as "FRONT" | "REAR" | "INTERIOR" | null) ?? null,
+      gridRow: p.gridRow,
+      gridCol: p.gridCol,
     })),
+    annotations: asset.faceplateAnnotations.map((a) => ({
+      id: a.id,
+      face: a.face as "FRONT" | "REAR" | "INTERIOR",
+      kind: a.kind as "TEXT" | "SPACER",
+      text: a.text,
+      gridRow: a.gridRow,
+      gridCol: a.gridCol,
+      rowSpan: a.rowSpan,
+      colSpan: a.colSpan,
+      sortOrder: a.sortOrder,
+    })),
+    builtInGridRow: asset.builtInGridRow?.toString() ?? "",
+    builtInGridCol: asset.builtInGridCol?.toString() ?? "",
+    builtInFace: asset.builtInFace ?? "",
   };
 
   return (
