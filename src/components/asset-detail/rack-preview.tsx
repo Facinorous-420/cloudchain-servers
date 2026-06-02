@@ -3,90 +3,12 @@
 import { useState } from "react";
 import type { DiagramAsset } from "@/app/(app)/topology/rack-diagram";
 import { AssetFaceContent } from "@/app/(app)/topology/topology-view";
-import {
-  DEFAULT_DIAGRAM_PREFS,
-  type DiagramPrefs,
-} from "@/lib/diagram-prefs";
-import { createContext, useContext } from "react";
+import { RACK_FACE_INCHES } from "@/lib/faceplate";
 
-// Re-expose the context that AssetFaceContent reads. topology-view.tsx defines
-// it module-privately; we need to provide matching prefs for the preview.
-// We can't import the context directly, but DiagramPrefsContext is read via
-// useDiagramPrefs() which falls back to DEFAULT_DIAGRAM_PREFS from the context
-// default — so as long as we render within a provider that matches, it works.
-// topology-view exports nothing for the context, so we build a minimal wrapper
-// that simply renders inside the DiagramSettingsProvider the app already wraps
-// (layout.tsx) which covers portLabels. The prefs context default is
-// DEFAULT_DIAGRAM_PREFS, which is fine for a static preview (no filters active).
-
-const U_PX = 40;
-
-function FacePanel({
-  asset,
-  face,
-  label,
-  imageMode,
-}: {
-  asset: DiagramAsset;
-  face: "FRONT" | "REAR";
-  label: string;
-  imageMode: boolean;
-}) {
-  const rackUnits = asset.rackUnits ?? 1;
-  const height = rackUnits * U_PX;
-
-  const imgPath =
-    face === "REAR"
-      ? (asset.rackRenderRearPath ?? asset.rackRenderFrontPath)
-      : (asset.rackRenderFrontPath ?? asset.rackRenderRearPath);
-
-  return (
-    <div className="flex flex-col gap-1.5 min-w-0">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-text-dim">
-        {label}
-      </span>
-      <div
-        className="relative overflow-hidden rounded border border-border/80 bg-gradient-to-b from-[#272e37] to-[#1d232b]"
-        style={{ height, minWidth: 160, maxWidth: 420 }}
-      >
-        {/* Left accent stripe */}
-        <span
-          aria-hidden
-          className="absolute inset-y-0 left-0 w-[3px] bg-cat-server z-10"
-          style={{
-            background: getCategoryStripe(asset.category),
-          }}
-        />
-        {imageMode ? (
-          imgPath ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imgPath}
-              alt={asset.codename}
-              draggable={false}
-              className="h-full w-full object-fill"
-            />
-          ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-0.5 px-1 text-center">
-              <span
-                aria-hidden
-                className={`mb-0.5 inline-block h-1.5 w-1.5 rounded-full ${asset.state === "IN_USE" ? "bg-status-green" : "bg-faint"}`}
-              />
-              <span className="truncate text-[11px] font-black leading-tight">
-                {asset.codename}
-              </span>
-              <span className="text-[8px] text-faint">no render image</span>
-            </div>
-          )
-        ) : (
-          <div className="flex h-full items-stretch gap-0 overflow-hidden px-1.5 py-0.5 pl-3">
-            <AssetFaceContent asset={asset} face={face} onInspect={() => {}} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// Matches the topology diagram's 1U height in pixels.
+const PREVIEW_U = 40;
+const U_IN = 1.75;
+const PREVIEW_PPI = PREVIEW_U / U_IN; // ≈ 22.857 px/inch
 
 const CATEGORY_STRIPE: Record<string, string> = {
   SERVER: "var(--color-cat-server)",
@@ -105,21 +27,136 @@ const CATEGORY_STRIPE: Record<string, string> = {
   BLANK_PANEL: "var(--color-faint)",
   OTHER: "var(--color-faint)",
 };
-function getCategoryStripe(cat: string) {
-  return CATEGORY_STRIPE[cat] ?? CATEGORY_STRIPE.OTHER;
+
+// Renders one face in the same rack-strip style as the faceplate designer's
+// "Preview in rack" section: U-number column on the left, dark rack cell, the
+// asset sitting at the bottom of a 1U-taller context strip.
+function FacePreview({
+  asset,
+  face,
+  rackUnits,
+  faceWidthInches,
+  imageMode,
+}: {
+  asset: DiagramAsset;
+  face: "FRONT" | "REAR";
+  rackUnits: number;
+  faceWidthInches: number;
+  imageMode: boolean;
+}) {
+  const totalU = rackUnits + 1;
+  const innerWidth = Math.round(faceWidthInches * PREVIEW_PPI);
+  const assetHeight = rackUnits * PREVIEW_U;
+
+  const imgPath =
+    face === "REAR"
+      ? (asset.rackRenderRearPath ?? asset.rackRenderFrontPath)
+      : (asset.rackRenderFrontPath ?? asset.rackRenderRearPath);
+
+  const stripe = CATEGORY_STRIPE[asset.category] ?? CATEGORY_STRIPE.OTHER;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-text-dim">
+        {face}
+      </p>
+      <div className="flex">
+        {/* U-number scale */}
+        <div
+          className="grid w-6 shrink-0 text-[8px] text-faint"
+          style={{ gridTemplateRows: `repeat(${totalU}, ${PREVIEW_U}px)` }}
+        >
+          {Array.from({ length: totalU }, (_, i) => {
+            const u = totalU - i;
+            return (
+              <div
+                key={u}
+                className="flex items-start justify-end pr-1 pt-0.5 leading-none"
+              >
+                U{u}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Rack slot */}
+        <div
+          className="relative rounded-[3px] border border-[#04070b] bg-[#0a0d12]"
+          style={{
+            width: innerWidth,
+            height: totalU * PREVIEW_U,
+            backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${PREVIEW_U - 1}px, rgba(255,255,255,0.05) ${PREVIEW_U - 1}px, rgba(255,255,255,0.05) ${PREVIEW_U}px)`,
+          }}
+        >
+          {/* Asset cell pinned to the bottom of the slot */}
+          <div
+            className="absolute inset-x-0 bottom-0 overflow-hidden rounded border border-border/80 bg-linear-to-b from-[#272e37] to-[#1d232b]"
+            style={{ height: assetHeight }}
+          >
+            {/* Left category stripe */}
+            <span
+              aria-hidden
+              className="absolute inset-y-0 left-0 z-10 w-0.75"
+              style={{ background: stripe }}
+            />
+
+            {imageMode ? (
+              imgPath ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={imgPath}
+                  alt={asset.codename}
+                  draggable={false}
+                  className="h-full w-full object-fill"
+                />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-0.5 px-1 text-center">
+                  <span
+                    aria-hidden
+                    className={`mb-0.5 inline-block h-1.5 w-1.5 rounded-full ${asset.state === "IN_USE" ? "bg-status-green" : "bg-faint"}`}
+                  />
+                  <span className="truncate text-[11px] font-black">
+                    {asset.codename}
+                  </span>
+                  <span className="text-[8px] text-faint">no render image</span>
+                </div>
+              )
+            ) : (
+              <div className="flex h-full w-full items-stretch gap-0 overflow-hidden px-1 py-0.5 pl-3">
+                <AssetFaceContent
+                  asset={asset}
+                  face={face}
+                  onInspect={() => {}}
+                  pxPerInch={PREVIEW_PPI}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function RackFaceplatePreview({ asset }: { asset: DiagramAsset }) {
   const [imageMode, setImageMode] = useState(false);
-  const hasImages = !!(asset.rackRenderFrontPath || asset.rackRenderRearPath);
+
+  const rackUnits = asset.rackUnits ?? 1;
+  const faceWidthInches =
+    (asset.formFactor === "TOWER" ? asset.widthInches : null) ??
+    RACK_FACE_INCHES;
+  const hasRenderImages = !!(
+    asset.rackRenderFrontPath || asset.rackRenderRearPath
+  );
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <p className="text-[11px] text-text-dim">
-          How this item renders in the rack diagram:
+          How this item renders in the rack diagram ({rackUnits}U ·{" "}
+          {Math.round(faceWidthInches)}" wide):
         </p>
-        {hasImages && (
+        {hasRenderImages && (
           <div className="flex overflow-hidden rounded-md border border-border bg-panel-2">
             {(["faceplate", "image"] as const).map((mode) => {
               const active = (mode === "image") === imageMode;
@@ -142,25 +179,22 @@ export function RackFaceplatePreview({ asset }: { asset: DiagramAsset }) {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-4">
-        <FacePanel
+      <div className="flex flex-wrap gap-6">
+        <FacePreview
           asset={asset}
           face="FRONT"
-          label="Front"
+          rackUnits={rackUnits}
+          faceWidthInches={faceWidthInches}
           imageMode={imageMode}
         />
-        <FacePanel
+        <FacePreview
           asset={asset}
           face="REAR"
-          label="Rear"
+          rackUnits={rackUnits}
+          faceWidthInches={faceWidthInches}
           imageMode={imageMode}
         />
       </div>
-
-      <p className="text-[10px] text-faint">
-        {asset.rackUnits ?? "?"} U ·{" "}
-        {imageMode ? "Image mode" : "Faceplate mode"} · non-interactive preview
-      </p>
     </div>
   );
 }
