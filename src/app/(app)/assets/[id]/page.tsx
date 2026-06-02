@@ -21,6 +21,7 @@ import { RamSection } from "@/components/asset-detail/ram-section";
 import { DriveBaySections } from "@/components/asset-detail/drive-bay-section";
 import { PciSection } from "@/components/asset-detail/pci-section";
 import { SaveAsPresetButton } from "@/components/save-as-preset-button";
+import { AssetDetailTabs, DetailTab } from "@/components/asset-detail/asset-detail-tabs";
 
 export default async function AssetDetailPage({
   params,
@@ -277,6 +278,8 @@ export default async function AssetDetailPage({
         </div>
       </div>
 
+      <AssetDetailTabs hasRendering={asset.images.length > 0}>
+      <DetailTab tab="rendering">
       {asset.images.length > 0 && (
         <DetailSection title="Images">
           <div className="flex flex-wrap gap-3">
@@ -291,7 +294,9 @@ export default async function AssetDetailPage({
           </div>
         </DetailSection>
       )}
+      </DetailTab>
 
+      <DetailTab tab="general">
       <DetailSection title="Identification">
         <DetailGrid>
           <DetailField label="Name" value={asset.name} />
@@ -302,7 +307,9 @@ export default async function AssetDetailPage({
           <DetailField label="Condition" value={asset.condition} />
         </DetailGrid>
       </DetailSection>
+      </DetailTab>
 
+      <DetailTab tab="size">
       <DetailSection title="Physical">
         <DetailGrid>
           <DetailField
@@ -328,7 +335,9 @@ export default async function AssetDetailPage({
           />
         </DetailGrid>
       </DetailSection>
+      </DetailTab>
 
+      <DetailTab tab="general">
       <DetailSection title="Placement">
         <DetailGrid>
           <DetailField label="Location" value={enumLabel(asset.location)} />
@@ -403,7 +412,9 @@ export default async function AssetDetailPage({
           </DetailGrid>
         </DetailSection>
       )}
+      </DetailTab>
 
+      <DetailTab tab="hardware">
       {isServerLike && (
         <DetailSection title="Current hardware">
           <DetailGrid>
@@ -827,6 +838,9 @@ export default async function AssetDetailPage({
         </DetailSection>
       )}
 
+      </DetailTab>
+
+      <DetailTab tab="general">
       {asset.licenseLinks.length > 0 && (
         <DetailSection title="Licenses assigned">
           <ul className="flex flex-col gap-1.5 text-[13px]">
@@ -847,6 +861,9 @@ export default async function AssetDetailPage({
         </DetailSection>
       )}
 
+      </DetailTab>
+
+      <DetailTab tab="hardware">
       {connections.length > 0 && (
         <DetailSection
           title="Connections"
@@ -917,6 +934,9 @@ export default async function AssetDetailPage({
         </DetailSection>
       )}
 
+      </DetailTab>
+
+      <DetailTab tab="general">
       <DetailSection title="Acquisition">
         <DetailGrid>
           <DetailField
@@ -963,6 +983,8 @@ export default async function AssetDetailPage({
           </p>
         </DetailSection>
       )}
+      </DetailTab>
+      </AssetDetailTabs>
     </div>
   );
 }

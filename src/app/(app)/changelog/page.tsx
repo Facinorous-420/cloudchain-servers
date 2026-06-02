@@ -44,7 +44,7 @@ const CHANGELOG: { version: string; date: string; entries: Entry[] }[] = [
       { type: "CHANGE_MAJOR", text: "PCIe slot editor: the 'install from inventory' list and the create-new type/size options are now filtered to cards that physically fit the selected slot; changing a slot's size resets its pending card; creating an NVMe riser inline can define its M.2 slots and drives" },
       { type: "ADD", text: "Components carry a structured connector size (x1–x16, M.2 lengths) for slot-fit matching" },
       // ── Forms & UX ───────────────────────────────────────────────────────────
-      { type: "ADD", text: "Item editing is now organised into tabs (General, Size, Hardware, Rendering) to keep long forms manageable" },
+      { type: "ADD", text: "Item edit and detail pages are now organised into tabs (General, Size, Hardware, Rendering) to keep long pages manageable" },
       { type: "CHANGE_MINOR", text: "Editing any item: a validation error no longer wipes the other fields you changed — your entries are preserved" },
       { type: "CHANGE_MINOR", text: "Creating an asset from a preset now carries the preset's image into the new asset" },
       { type: "ADD", text: "Changelog entries are now colour-coded by change type (added / changed / minor / removed)" },
