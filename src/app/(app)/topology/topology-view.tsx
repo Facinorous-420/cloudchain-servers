@@ -172,21 +172,23 @@ export function TopologyView({
   const searchParams = useSearchParams();
   // View filters — seeded from the saved per-user prefs and persisted on change.
   const [viewPrefs, setViewPrefs] = useState<DiagramPrefs>(prefs);
+  // Persist in an effect (not inside the state updater) so the server action —
+  // which triggers a Router update — never runs during render.
+  const prefsSeeded = useRef(true);
+  useEffect(() => {
+    if (prefsSeeded.current) {
+      prefsSeeded.current = false;
+      return;
+    }
+    void saveDiagramPrefs(viewPrefs);
+  }, [viewPrefs]);
   const togglePref = useCallback((key: keyof DiagramPrefs) => {
-    setViewPrefs((cur) => {
-      const next = { ...cur, [key]: !cur[key] };
-      void saveDiagramPrefs(next);
-      return next;
-    });
+    setViewPrefs((cur) => ({ ...cur, [key]: !cur[key] }));
   }, []);
-  // Set a non-boolean pref (opacity slider, hidden-element list) and persist.
+  // Set a non-boolean pref (opacity slider, hidden-element list).
   const setPref = useCallback(
     <K extends keyof DiagramPrefs>(key: K, value: DiagramPrefs[K]) => {
-      setViewPrefs((cur) => {
-        const next = { ...cur, [key]: value };
-        void saveDiagramPrefs(next);
-        return next;
-      });
+      setViewPrefs((cur) => ({ ...cur, [key]: value }));
     },
     [],
   );
@@ -699,7 +701,34 @@ function FilterMorePanel({
   const hidden = new Set(hiddenElements);
   const wrap = "rounded-md border border-border bg-panel-2 p-3";
 
-  if (kind === "outlets") {
+  // Each kind hides by TYPE across every asset in the rack (e.g. hide all SFP
+  // ports, or all LFF bays), mirroring how outlet types are hidden.
+  let heading: string;
+  let options: { key: string; label: string }[];
+  if (kind === "ports") {
+    heading = "Show port types";
+    const types = Array.from(
+      new Set(
+        assets.flatMap((a) =>
+          a.portGroups.filter((g) => g.portCount > 0).map((g) => g.portType),
+        ),
+      ),
+    ).sort();
+    options = types.map((t) => ({
+      key: `portType:${t}`,
+      label: PORT_TYPE_FILTER_LABEL[t] ?? t,
+    }));
+  } else if (kind === "bays") {
+    heading = "Show drive-bay types";
+    const sizes = Array.from(
+      new Set(assets.flatMap((a) => a.bayZones.map((z) => z.driveSize))),
+    ).sort();
+    options = sizes.map((s) => ({
+      key: `driveSize:${s}`,
+      label: BAY_SIZE_FILTER_LABEL[s] ?? s,
+    }));
+  } else {
+    heading = "Show outlet types";
     const types = Array.from(
       new Set(
         assets.flatMap((a) =>
@@ -709,110 +738,55 @@ function FilterMorePanel({
         ),
       ),
     ).sort();
-    if (types.length === 0)
-      return (
-        <div className={`${wrap} text-[11px] text-faint`}>
-          No outlet types in this rack.
-        </div>
-      );
-    return (
-      <div className={wrap}>
-        <p className="mb-2 text-[10px] uppercase tracking-wider text-text-dim">
-          Show outlet types
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {types.map((t) => {
-            const key = `outletType:${t}`;
-            const isHidden = hidden.has(key);
-            return (
-              <Chip
-                key={key}
-                active={!isHidden}
-                onClick={() => onToggleElement(key)}
-              >
-                {t}
-              </Chip>
-            );
-          })}
-        </div>
-      </div>
-    );
+    options = types.map((t) => ({ key: `outletType:${t}`, label: t }));
   }
 
-  // ports / bays: group by asset.
-  const rows = assets
-    .map((a) => ({
-      asset: a,
-      groups:
-        kind === "ports"
-          ? a.portGroups.filter((g) => g.portCount > 0)
-          : [],
-      zones: kind === "bays" ? a.bayZones : [],
-    }))
-    .filter((r) => (kind === "ports" ? r.groups.length : r.zones.length) > 0);
-
-  if (rows.length === 0)
+  if (options.length === 0)
     return (
       <div className={`${wrap} text-[11px] text-faint`}>
-        {kind === "ports"
-          ? "No ports in this rack."
-          : "No drive bays in this rack."}
+        Nothing of this kind in this rack.
       </div>
     );
 
   return (
-    <div className={`${wrap} flex max-h-72 flex-col gap-3 overflow-y-auto`}>
-      <p className="text-[10px] uppercase tracking-wider text-text-dim">
-        {kind === "ports" ? "Show ports (per group)" : "Show drive-bay zones"}
+    <div className={wrap}>
+      <p className="mb-2 text-[10px] uppercase tracking-wider text-text-dim">
+        {heading}
       </p>
-      {rows.map(({ asset, groups, zones }) => (
-        <div key={asset.id} className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-bold text-text">
-            {asset.codename}
-          </span>
-          {kind === "ports"
-            ? groups.map((g) => (
-                <div key={g.id} className="flex flex-col gap-1 pl-2">
-                  <span className="text-[10px] text-text-dim">
-                    {g.name ?? g.portType}
-                  </span>
-                  <div className="flex flex-wrap gap-1">
-                    {Array.from({ length: g.portCount }, (_, i) => i + 1).map(
-                      (n) => {
-                        const key = `port:${g.id}:${n}`;
-                        return (
-                          <Chip
-                            key={key}
-                            small
-                            active={!hidden.has(key)}
-                            onClick={() => onToggleElement(key)}
-                          >
-                            {n}
-                          </Chip>
-                        );
-                      },
-                    )}
-                  </div>
-                </div>
-              ))
-            : zones.map((z) => {
-                const key = `bay:${z.id}`;
-                return (
-                  <div key={z.id} className="pl-2">
-                    <Chip
-                      active={!hidden.has(key)}
-                      onClick={() => onToggleElement(key)}
-                    >
-                      {z.name} · {z.bayCount} {z.driveSize}
-                    </Chip>
-                  </div>
-                );
-              })}
-        </div>
-      ))}
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <Chip
+            key={o.key}
+            active={!hidden.has(o.key)}
+            onClick={() => onToggleElement(o.key)}
+          >
+            {o.label}
+          </Chip>
+        ))}
+      </div>
     </div>
   );
 }
+
+// Readable labels for the type-based filter chips.
+const PORT_TYPE_FILTER_LABEL: Record<string, string> = {
+  ETHERNET: "Ethernet",
+  FAST_ETHERNET: "Fast Ethernet",
+  IPMI: "IPMI",
+  SFP: "SFP",
+  SFP_PLUS: "SFP+",
+  SFP28: "SFP28",
+  QSFP: "QSFP",
+  QSFP_PLUS: "QSFP+",
+  QSFP28: "QSFP28",
+  CONSOLE: "Console",
+  USB: "USB",
+};
+const BAY_SIZE_FILTER_LABEL: Record<string, string> = {
+  LFF: 'LFF (3.5")',
+  SFF: 'SFF (2.5")',
+  M2: "M.2 / NVMe",
+};
 
 // Small toggle chip used by the filter "more" panels. active = visible.
 function Chip({
@@ -2308,8 +2282,8 @@ export function DriveBayGrid({
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hideBays) return null;
-  // Per-user overlay: this specific bay zone is hidden in the user's view.
-  if (prefs.hiddenElements.includes(`bay:${zone.id}`)) return null;
+  // Per-user overlay: hide every drive bay of this size across the rack.
+  if (prefs.hiddenElements.includes(`driveSize:${zone.driveSize}`)) return null;
   const size = BAY_SIZE[zone.driveSize] ?? BAY_SIZE.SFF;
   const drivesByBay = new Map(
     zone.drives
@@ -2435,19 +2409,14 @@ export function PortGrid({
   const { portLabels } = useDiagramSettings();
   const prefs = useDiagramPrefs();
   if (prefs.hidePorts) return null;
+  // Per-user overlay: hide every port of this type across the rack.
+  if (portType && prefs.hiddenElements.includes(`portType:${portType}`))
+    return null;
   if (count <= 0) return null;
   const sz = portSize(heightU);
   // Hidden ports are omitted from the render but keep their port numbers so
-  // connections still address them correctly. Union the asset's own hidden
-  // ports (faceplate layout) with the user's per-view "hide this port" overlay.
+  // connections still address them correctly (faceplate-layout hidden ports).
   const hiddenSet = new Set(hidden ?? []);
-  const userPrefix = `port:${groupId}:`;
-  for (const key of prefs.hiddenElements) {
-    if (key.startsWith(userPrefix)) {
-      const n = Number(key.slice(userPrefix.length));
-      if (Number.isFinite(n)) hiddenSet.add(n);
-    }
-  }
   const slots = Array.from({ length: count }, (_, i) => i + 1).filter(
     (n) => !hiddenSet.has(n),
   );

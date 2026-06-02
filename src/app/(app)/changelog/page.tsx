@@ -33,7 +33,7 @@ const CHANGELOG: { version: string; date: string; entries: Entry[] }[] = [
       { type: "ADD", text: "Image-render mode: each asset can render a per-face image sized to its U-space (with a placeholder block when none is set); drag and inspect move to corner handles in this mode" },
       { type: "ADD", text: "Per-face rack-render image upload on the asset form, blocked until rack height is set, with a live preview of the image scaled into the item's U-space" },
       { type: "ADD", text: "Faceplate layout editor: set each port/outlet group's face, rows × columns, and show/hide individual ports, with a live faceplate preview that mirrors the diagram" },
-      { type: "ADD", text: "Hide specific ports, drive-bay zones, or outlet types (not just all-or-nothing) from the topology view filters — saved per-user" },
+      { type: "ADD", text: "Hide specific port types (Ethernet, SFP…), drive-bay types (LFF, SFF, NVMe), or outlet types across the whole rack from the topology view filters — saved per-user" },
       { type: "ADD", text: "Optionally keep the drag and inspect handles pinned to each item's top corners outside image mode, with an adjustable transparency" },
       { type: "ADD", text: "Rack UPS/PDU units now show a PWR INLET zone (their power feed) in addition to POWER OUT" },
       { type: "CHANGE_MINOR", text: "Narrow single-column rack items now show just a status dot (full name on hover / in the inspector) instead of a clipped letter" },
