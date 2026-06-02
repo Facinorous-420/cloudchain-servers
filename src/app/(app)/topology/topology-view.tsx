@@ -1395,7 +1395,7 @@ function CustomFaceplate({
     const { w, h } = blockSpan({ kind: "bay", count: z.bayCount, columns: z.columns, rackUnits: heightU });
     items.push({
       key: `bay-${z.id}`, row: z.gridRow, col: z.gridCol, w, h, title: z.name,
-      node: <DriveBayGrid zone={z} heightU={heightU} onInspect={onInspect} />,
+      node: <DriveBayGrid zone={z} heightU={heightU} onInspect={onInspect} fill />,
     });
   });
   asset.portGroups.forEach((g) => {
@@ -1405,7 +1405,7 @@ function CustomFaceplate({
     items.push({
       key: `port-${g.id}`, row: g.gridRow, col: g.gridCol, w, h,
       title: g.name ?? PORT_TYPE_LABELS[g.portType as (typeof PORT_TYPES)[number]],
-      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={g.connectedPorts} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={heightU} onInspect={onInspect} />,
+      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={g.connectedPorts} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={heightU} onInspect={onInspect} fill />,
     });
   });
   asset.outletGroups.forEach((g) => {
@@ -1415,7 +1415,7 @@ function CustomFaceplate({
     items.push({
       key: `outlet-${g.id}`, row: g.gridRow, col: g.gridCol, w, h,
       title: g.name ?? g.outletType ?? "POWER OUT",
-      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={g.connectedOutlets} heightU={heightU} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={onInspect} />,
+      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={g.connectedOutlets} heightU={heightU} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={onInspect} fill />,
     });
   });
   asset.psus.forEach((p) => {
@@ -1435,7 +1435,7 @@ function CustomFaceplate({
     const { w, h } = blockSpan({ kind: "builtin", ethernet: asset.builtInEthernetCount ?? 0, sfp: asset.builtInSfpCount ?? 0, rackUnits: heightU });
     items.push({
       key: "builtin", row: asset.builtInGridRow, col: asset.builtInGridCol, w, h, title: "NICS",
-      node: <NicGrid assetId={asset.id} ethernet={asset.builtInEthernetCount ?? 0} sfp={asset.builtInSfpCount ?? 0} heightU={heightU} onInspect={onInspect} />,
+      node: <NicGrid assetId={asset.id} ethernet={asset.builtInEthernetCount ?? 0} sfp={asset.builtInSfpCount ?? 0} heightU={heightU} onInspect={onInspect} fill />,
     });
   }
   (asset.annotations ?? []).forEach((a, i) => {
@@ -1466,14 +1466,16 @@ function CustomFaceplate({
         <div
           key={it.key}
           style={{ gridColumn: `${it.col} / span ${it.w}`, gridRow: `${it.row} / span ${it.h}` }}
-          className="flex min-h-0 min-w-0 flex-col justify-center overflow-hidden"
+          className="relative flex min-h-0 min-w-0 items-center justify-center overflow-hidden"
         >
           {it.title && (
-            <div className="mb-0.5 truncate text-left text-[7px] font-black uppercase tracking-[0.7px] text-faint">
+            <div className="pointer-events-none absolute left-0 top-0 max-w-full truncate text-left text-[7px] font-black uppercase tracking-[0.7px] text-faint">
               {it.title}
             </div>
           )}
-          <div className="min-h-0 overflow-hidden">{it.node}</div>
+          <div className="flex h-full w-full items-center justify-center overflow-hidden">
+            {it.node}
+          </div>
         </div>
       ))}
     </div>
@@ -1970,10 +1972,12 @@ export function DriveBayGrid({
   zone,
   heightU,
   onInspect,
+  fill,
 }: {
   zone: DiagramAsset["bayZones"][number];
   heightU: number;
   onInspect: (target: string) => void;
+  fill?: boolean;
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hideBays) return null;
@@ -1995,6 +1999,47 @@ export function DriveBayGrid({
             zone.bayCount /
               Math.max(1, Math.floor((heightU * U_PX - 22) / (size.h + 3))),
           );
+  // Fill mode (faceplate designer / custom layout): bays fill their allocated
+  // area to true scale, instead of fixed pixel sizes.
+  if (fill) {
+    const nRows = Math.max(1, Math.ceil(zone.bayCount / perRow));
+    return (
+      <div
+        className="grid h-full w-full gap-[2px]"
+        style={{
+          gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${nRows}, minmax(0, 1fr))`,
+        }}
+      >
+        {bays.map((n) => {
+          const drive = drivesByBay.get(n);
+          return (
+            <button
+              key={n}
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onInspect(`bay:${zone.id}:${n}`);
+              }}
+              className={`flex min-h-0 min-w-0 cursor-pointer items-center justify-center rounded-[2px] border text-[7px] font-black leading-none ${
+                drive
+                  ? "border-[#52d062] bg-cat-server text-bg"
+                  : "border-[#3a424d] bg-[#2a313b] text-faint"
+              }`}
+              title={
+                drive
+                  ? `Bay ${n}: ${drive.name} · ${drive.kind} · ${drive.capacityGB} GB`
+                  : `Bay ${n}: empty — click to add a drive`
+              }
+            >
+              {drive ? drive.kind : ""}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
   return (
     <div
       className="flex flex-wrap content-center gap-[3px]"
@@ -2047,6 +2092,7 @@ export function PortGrid({
   rows: rowsProp,
   columns: colsProp,
   hidden,
+  fill,
 }: {
   groupId: string;
   count: number;
@@ -2057,6 +2103,7 @@ export function PortGrid({
   rows?: number | null;
   columns?: number | null;
   hidden?: number[] | null;
+  fill?: boolean;
 }) {
   // Hooks first (before any early return) so toggling filters can't change the
   // hook order between renders.
@@ -2086,6 +2133,38 @@ export function PortGrid({
   }
   const connectedSet = new Set(connectedPorts);
   const shortLabel = portType ? (portLabels[portType] ?? DEFAULT_PORT_TYPE_LABELS[portType] ?? portType.slice(0, 3)) : "";
+  if (fill) {
+    return (
+      <div
+        className="grid h-full w-full gap-[2px]"
+        style={{
+          gridTemplateColumns: `repeat(${per}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${rows.length}, minmax(0, 1fr))`,
+        }}
+      >
+        {slots.map((n) => {
+          const connected = connectedSet.has(n);
+          return (
+            <button
+              key={n}
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onInspect(`port:${groupId}:${n}`);
+              }}
+              className={`flex min-h-0 min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border text-[7px] font-bold leading-none ${
+                connected ? portTypeClass(portType ?? "ETHERNET") : PORT_EMPTY_CLASS
+              }`}
+              title={`${portType ?? "Port"} ${n}${connected ? " (connected)" : ""}`}
+            >
+              {shortLabel}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-[3px]">
       {rows.map((row, ri) => (
@@ -2128,6 +2207,7 @@ export function OutletGrid({
   rows: rowsProp,
   columns: colsProp,
   hidden,
+  fill,
 }: {
   groupId: string;
   count: number;
@@ -2139,6 +2219,7 @@ export function OutletGrid({
   rows?: number | null;
   columns?: number | null;
   hidden?: number[] | null;
+  fill?: boolean;
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hidePorts) return null;
@@ -2162,6 +2243,38 @@ export function OutletGrid({
   }
   const connectedSet = new Set(connectedOutlets);
   const icon = batteryBacked ? "B" : surgeProtected ? "~" : null;
+  if (fill) {
+    return (
+      <div
+        className="grid h-full w-full place-items-center gap-[2px]"
+        style={{
+          gridTemplateColumns: `repeat(${per}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${rows.length}, minmax(0, 1fr))`,
+        }}
+      >
+        {slots.map((n) => {
+          const connected = connectedSet.has(n);
+          return (
+            <button
+              key={n}
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onInspect(`outlet:${groupId}:${n}`);
+              }}
+              className={`flex aspect-square h-full max-h-[22px] cursor-pointer items-center justify-center rounded-full border ${
+                connected ? "border-[#52d062]/60 bg-status-green/25" : "border-[#3a424d] bg-[#2a313b]"
+              }`}
+              title={`Outlet ${n}${connected ? " (connected)" : batteryBacked ? " (battery-backed)" : surgeProtected ? " (surge-protected)" : ""}`}
+            >
+              {icon && <span className={`text-[6px] font-bold leading-none ${connected ? "text-[#0d1117]" : "text-faint"}`}>{icon}</span>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-[3px]">
       {rows.map((row, ri) => (
@@ -2247,17 +2360,53 @@ export function NicGrid({
   sfp,
   heightU,
   onInspect,
+  fill,
 }: {
   assetId: string;
   ethernet: number;
   sfp: number;
   heightU: number;
   onInspect: (target: string) => void;
+  fill?: boolean;
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hidePorts) return null;
   const sz = Math.min(portSize(heightU) + 2, 15);
   const showLabel = sz >= 10;
+  if (fill) {
+    const total = Math.max(1, ethernet + sfp);
+    return (
+      <div
+        className="grid h-full w-full gap-[2px]"
+        style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))`, gridTemplateRows: "1fr" }}
+      >
+        {Array.from({ length: ethernet }, (_, i) => (
+          <button
+            key={`eth-${i}`}
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onInspect(`nic:${assetId}:eth:${i + 1}`); }}
+            className="flex min-h-0 min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border border-[#3a424d] bg-[#2a313b] text-[7px] font-bold leading-none text-faint"
+            title={`NIC ${i + 1}`}
+          >
+            GbE
+          </button>
+        ))}
+        {Array.from({ length: sfp }, (_, i) => (
+          <button
+            key={`sfp-${i}`}
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onInspect(`nic:${assetId}:sfp:${i + 1}`); }}
+            className={`flex min-h-0 min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border text-[7px] font-bold leading-none ${PORT_EMPTY_CLASS}`}
+            title={`SFP ${i + 1}`}
+          >
+            S+
+          </button>
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="flex gap-[3px]">
       {Array.from({ length: ethernet }, (_, i) => (

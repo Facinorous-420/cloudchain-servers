@@ -149,7 +149,7 @@ export function FaceplateDesigner({
       face: (z.faceSide === "REAR" ? "REAR" : "FRONT") as FaceId,
       row: z.gridRow ?? null, col: z.gridCol ?? null, span: blockSpan(spec),
       shape: { count: z.bayCount, columns: z.columns ?? null },
-      node: <DriveBayGrid zone={z} heightU={rackUnits || 1} onInspect={noop} />,
+      node: <DriveBayGrid zone={z} heightU={rackUnits || 1} onInspect={noop} fill />,
     });
   });
   asset.portGroups.forEach((g, i) => {
@@ -159,7 +159,7 @@ export function FaceplateDesigner({
       face: ((g.face as FaceId) ?? "FRONT") as FaceId,
       row: g.gridRow ?? null, col: g.gridCol ?? null, span: blockSpan(spec),
       shape: { count: g.portCount, columns: g.columns ?? null },
-      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={[]} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={rackUnits || 1} onInspect={noop} />,
+      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={[]} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={rackUnits || 1} onInspect={noop} fill />,
     });
   });
   asset.outletGroups.forEach((g, i) => {
@@ -169,7 +169,7 @@ export function FaceplateDesigner({
       face: ((g.face as FaceId) ?? "REAR") as FaceId,
       row: g.gridRow ?? null, col: g.gridCol ?? null, span: blockSpan(spec),
       shape: { count: g.outletCount, columns: g.columns ?? null },
-      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={[]} heightU={rackUnits || 1} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={noop} />,
+      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={[]} heightU={rackUnits || 1} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={noop} fill />,
     });
   });
   psus.forEach((p, i) => {
@@ -187,7 +187,7 @@ export function FaceplateDesigner({
       face: ((builtIn.face as FaceId) ?? "REAR") as FaceId,
       row: builtIn.gridRow, col: builtIn.gridCol,
       span: blockSpan({ kind: "builtin", ethernet: builtIn.ethernet, sfp: builtIn.sfp, rackUnits: rackUnits || 1 }),
-      node: <NicGrid assetId="preview" ethernet={builtIn.ethernet} sfp={builtIn.sfp} heightU={rackUnits || 1} onInspect={noop} />,
+      node: <NicGrid assetId="preview" ethernet={builtIn.ethernet} sfp={builtIn.sfp} heightU={rackUnits || 1} onInspect={noop} fill />,
     });
   }
   annotations.forEach((a, i) => {
@@ -409,7 +409,12 @@ function TrayChip({
       className="group/chip relative flex cursor-grab flex-col gap-0.5 rounded border border-accent/40 bg-bg/70 p-1 active:cursor-grabbing"
       title="Drag onto a face"
     >
-      <div className="pointer-events-none max-w-[180px] overflow-hidden">{block.node}</div>
+      <div
+        className="pointer-events-none overflow-hidden"
+        style={{ width: Math.min(block.span.w * 18, 200), height: block.span.h * 18 }}
+      >
+        {block.node}
+      </div>
       <div className="flex items-center justify-between gap-1">
         <ChipControls block={block} onTextChange={onTextChange} onRemove={onRemove} onColumns={onColumns} />
         {block.source === "anno" && (
