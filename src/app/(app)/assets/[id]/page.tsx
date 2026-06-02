@@ -22,6 +22,8 @@ import { DriveBaySections } from "@/components/asset-detail/drive-bay-section";
 import { PciSection } from "@/components/asset-detail/pci-section";
 import { SaveAsPresetButton } from "@/components/save-as-preset-button";
 import { AssetDetailTabs, DetailTab } from "@/components/asset-detail/asset-detail-tabs";
+import { RackFaceplatePreview } from "@/components/asset-detail/rack-preview";
+import type { DiagramAsset } from "@/app/(app)/topology/rack-diagram";
 
 export default async function AssetDetailPage({
   params,
@@ -57,6 +59,15 @@ export default async function AssetDetailPage({
       },
       portGroups: { orderBy: { sortOrder: "asc" } },
       outletGroups: { orderBy: { sortOrder: "asc" } },
+      psus: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, sortOrder: true, wattage: true,
+          portCount: true, side: true, state: true,
+          face: true, gridRow: true, gridCol: true,
+        },
+      },
+      faceplateAnnotations: { orderBy: { sortOrder: "asc" } },
       components: {
         orderBy: [{ type: "asc" }, { createdAt: "asc" }],
         select: {
@@ -114,6 +125,7 @@ export default async function AssetDetailPage({
               name: true,
               type: true,
               portCount: true,
+              portType: true,
               portSpeed: true,
               m2SlotCount: true,
               bayZones: {
@@ -225,6 +237,72 @@ export default async function AssetDetailPage({
     }
   }
 
+  // Build a DiagramAsset shape for the rack preview. Connected ports are all
+  // empty (no connection colouring in the preview — it's just a shape preview).
+  const diagramAsset: DiagramAsset = {
+    id: asset.id,
+    codename: asset.codename,
+    name: asset.name,
+    category: asset.category,
+    formFactor: asset.formFactor,
+    startU: asset.startU,
+    rackUnits: asset.rackUnits,
+    gridColumn: asset.gridColumn,
+    columnSpan: asset.columnSpan,
+    state: asset.state,
+    requiresSupport: asset.requiresSupport,
+    depthInches: asset.depthInches ?? null,
+    widthInches: asset.widthInches ?? null,
+    rackRenderFrontPath: asset.rackRenderFrontPath ?? null,
+    rackRenderRearPath: asset.rackRenderRearPath ?? null,
+    faceOrientation: asset.faceOrientation ?? null,
+    rackFace: asset.rackFace ?? null,
+    patchPanelType: asset.patchPanelType ?? null,
+    kvmChannelCount: asset.kvmChannelCount,
+    builtInEthernetCount: asset.builtInEthernetCount,
+    builtInSfpCount: asset.builtInSfpCount,
+    psuCount: asset.psuCount,
+    builtInGridRow: asset.builtInGridRow,
+    builtInGridCol: asset.builtInGridCol,
+    builtInFace: asset.builtInFace,
+    psus: asset.psus,
+    connectedPsuOrders: [],
+    connectedKvmChannels: [],
+    annotations: asset.faceplateAnnotations.map((a) => ({
+      face: a.face,
+      kind: a.kind,
+      text: a.text,
+      gridRow: a.gridRow,
+      gridCol: a.gridCol,
+    })),
+    bayZones: asset.bayZones,
+    portGroups: asset.portGroups.map((pg) => ({
+      ...pg,
+      hiddenPorts: (pg.hiddenPorts as number[] | null) ?? null,
+      connectedPorts: [],
+    })),
+    outletGroups: asset.outletGroups.map((og) => ({
+      ...og,
+      hiddenPorts: (og.hiddenPorts as number[] | null) ?? null,
+      connectedOutlets: [],
+    })),
+    shelfItems: asset.shelfItems,
+    pciNics: asset.pciSlots
+      .filter(
+        (s) =>
+          (s.occupiedBy?.type === "NIC_CARD" || s.occupiedBy?.type === "RAID_CONTROLLER") &&
+          (s.occupiedBy.portCount ?? 0) > 0,
+      )
+      .map((s) => ({
+        componentId: s.occupiedBy!.id,
+        slotSortOrder: s.sortOrder,
+        portCount: s.occupiedBy!.portCount!,
+        portType: s.occupiedBy!.portType ?? "ETHERNET",
+        portSpeed: s.occupiedBy!.portSpeed ?? null,
+        componentName: s.occupiedBy!.name,
+      })),
+  };
+
   const isServer = asset.category === "SERVER";
   const isNuc = asset.category === "NUC";
   const isSbc = asset.category === "SBC";
@@ -278,8 +356,12 @@ export default async function AssetDetailPage({
         </div>
       </div>
 
-      <AssetDetailTabs hasRendering={asset.images.length > 0}>
+      <AssetDetailTabs hasRendering={true}>
       <DetailTab tab="rendering">
+      <DetailSection title="Rack preview">
+        <RackFaceplatePreview asset={diagramAsset} />
+      </DetailSection>
+
       {asset.images.length > 0 && (
         <DetailSection title="Images">
           <div className="flex flex-wrap gap-3">
