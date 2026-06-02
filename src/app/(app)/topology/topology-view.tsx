@@ -2259,19 +2259,11 @@ function PlainLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Fixed bay size per drive size (CLAUDE.md §7) — never shrinks to fit a
-// small device. The zone wraps to as many rows as it needs.
-const BAY_SIZE: Record<string, { w: number; h: number }> = {
-  LFF: { w: 30, h: 14 },
-  SFF: { w: 15, h: 15 },
-  M2:  { w: 24, h: 10 },
-};
-
 export function DriveBayGrid({
   zone,
   heightU,
   onInspect,
-  pxPerInch,
+  pxPerInch = U_PX / U_INCHES,
   cols,
 }: {
   zone: DiagramAsset["bayZones"][number];
@@ -2282,68 +2274,27 @@ export function DriveBayGrid({
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hideBays) return null;
-  // Per-user overlay: hide every drive bay of this size across the rack.
   if (prefs.hiddenElements.includes(`driveSize:${zone.driveSize}`)) return null;
-  const size = BAY_SIZE[zone.driveSize] ?? BAY_SIZE.SFF;
   const drivesByBay = new Map(
     zone.drives
       .filter((d) => d.bayNumber != null)
       .map((d) => [d.bayNumber as number, d]),
   );
   const bays = Array.from({ length: zone.bayCount }, (_, i) => i + 1);
-  // Resolved columns (clamped to fit the face) win; then explicit shape; then
-  // fit rows to the device height as before.
+  const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
+  const el = bayElementInches(zone.driveSize);
+  const ew = Math.max(8, Math.round(el.w * ppi));
+  const eh = Math.max(6, Math.round(el.h * ppi));
+  const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
+  // Resolved columns win; then explicit shape; then fit as many rows as the
+  // device height allows (using physical element height for accuracy).
   const perRow =
-    cols && cols > 0
-      ? cols
-      : zone.columns && zone.columns > 0
-      ? zone.columns
-      : zone.rows && zone.rows > 0
-        ? Math.ceil(zone.bayCount / zone.rows)
-        : Math.ceil(
-            zone.bayCount /
-              Math.max(1, Math.floor((heightU * U_PX - 22) / (size.h + 3))),
-          );
-  // Physical mode (faceplate designer / custom layout): each bay is drawn at its
-  // real size (LFF ≈ 4"×1") scaled by pxPerInch.
-  if (pxPerInch) {
-    const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
-    const el = bayElementInches(zone.driveSize);
-    const ew = Math.max(8, Math.round(el.w * ppi));
-    const eh = Math.max(6, Math.round(el.h * ppi));
-    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
-    return (
-      <div className="grid" style={{ gridTemplateColumns: `repeat(${perRow}, ${ew}px)`, gap }}>
-        {bays.map((n) => {
-          const drive = drivesByBay.get(n);
-          return (
-            <button
-              key={n}
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => { e.stopPropagation(); onInspect(`bay:${zone.id}:${n}`); }}
-              style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 9)) }}
-              className={`flex cursor-pointer items-center justify-center rounded-[2px] border font-black leading-none ${
-                drive ? "border-[#52d062] bg-cat-server text-bg" : "border-[#3a424d] bg-[#2a313b] text-faint"
-              }`}
-              title={
-                drive
-                  ? `Bay ${n}: ${drive.name} · ${drive.kind} · ${drive.capacityGB} GB`
-                  : `Bay ${n}: empty — click to add a drive`
-              }
-            >
-              {eh >= 12 ? (drive ? drive.kind : "") : ""}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
+    cols && cols > 0 ? cols
+    : zone.columns && zone.columns > 0 ? zone.columns
+    : zone.rows && zone.rows > 0 ? Math.ceil(zone.bayCount / zone.rows)
+    : Math.ceil(zone.bayCount / Math.max(1, Math.floor((heightU * U_PX - 22) / (eh + gap))));
   return (
-    <div
-      className="flex flex-wrap content-center gap-[3px]"
-      style={{ maxWidth: perRow * (size.w + 3) }}
-    >
+    <div className="grid" style={{ gridTemplateColumns: `repeat(${perRow}, ${ew}px)`, gap }}>
       {bays.map((n) => {
         const drive = drivesByBay.get(n);
         return (
@@ -2351,15 +2302,10 @@ export function DriveBayGrid({
             key={n}
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onInspect(`bay:${zone.id}:${n}`);
-            }}
-            style={{ width: size.w, height: size.h }}
-            className={`flex shrink-0 cursor-pointer items-center justify-center rounded-[2px] border text-[6px] font-black leading-none transition-transform hover:scale-110 hover:shadow-[0_0_8px_rgba(0,168,198,0.7)] ${
-              drive
-                ? "border-[#52d062] bg-cat-server text-bg"
-                : "border-[#3a424d] bg-[#2a313b] text-faint"
+            onClick={(e) => { e.stopPropagation(); onInspect(`bay:${zone.id}:${n}`); }}
+            style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 9)) }}
+            className={`flex cursor-pointer items-center justify-center rounded-[2px] border font-black leading-none transition-transform hover:scale-110 hover:shadow-[0_0_8px_rgba(0,168,198,0.7)] ${
+              drive ? "border-[#52d062] bg-cat-server text-bg" : "border-[#3a424d] bg-[#2a313b] text-faint"
             }`}
             title={
               drive
@@ -2367,18 +2313,12 @@ export function DriveBayGrid({
                 : `Bay ${n}: empty — click to add a drive`
             }
           >
-            {drive ? drive.kind : ""}
+            {eh >= 12 ? (drive ? drive.kind : "") : ""}
           </button>
         );
       })}
     </div>
   );
-}
-
-// Port square size scales with device height so 1U fits 2 rows without
-// clipping. 48-port 1U is the supported ceiling per CLAUDE.md §7.
-function portSize(heightU: number): number {
-  return Math.max(7, Math.min(Math.floor((heightU * U_PX - 22 - 3) / 2), 15));
 }
 
 export function PortGrid({
@@ -2391,7 +2331,7 @@ export function PortGrid({
   rows: rowsProp,
   columns: colsProp,
   hidden,
-  pxPerInch,
+  pxPerInch = U_PX / U_INCHES,
 }: {
   groupId: string;
   count: number;
@@ -2404,93 +2344,47 @@ export function PortGrid({
   hidden?: number[] | null;
   pxPerInch?: number;
 }) {
-  // Hooks first (before any early return) so toggling filters can't change the
-  // hook order between renders.
   const { portLabels } = useDiagramSettings();
   const prefs = useDiagramPrefs();
   if (prefs.hidePorts) return null;
-  // Per-user overlay: hide every port of this type across the rack.
-  if (portType && prefs.hiddenElements.includes(`portType:${portType}`))
-    return null;
+  if (portType && prefs.hiddenElements.includes(`portType:${portType}`)) return null;
   if (count <= 0) return null;
-  const sz = portSize(heightU);
-  // Hidden ports are omitted from the render but keep their port numbers so
-  // connections still address them correctly (faceplate-layout hidden ports).
   const hiddenSet = new Set(hidden ?? []);
   const slots = Array.from({ length: count }, (_, i) => i + 1).filter(
     (n) => !hiddenSet.has(n),
   );
   if (slots.length === 0) return null;
-  // Columns-per-row: explicit columns wins; else derive from an explicit row
-  // count; else the default two-row strip.
   const per =
-    colsProp && colsProp > 0
-      ? colsProp
-      : rowsProp && rowsProp > 0
-        ? Math.ceil(slots.length / rowsProp)
-        : Math.ceil(slots.length / 2);
-  const rows: number[][] = [];
-  for (let i = 0; i < slots.length; i += per) {
-    rows.push(slots.slice(i, i + per));
-  }
+    colsProp && colsProp > 0 ? colsProp
+    : rowsProp && rowsProp > 0 ? Math.ceil(slots.length / rowsProp)
+    : Math.ceil(slots.length / 2);
   const connectedSet = new Set(connectedPorts);
   const shortLabel = portType ? (portLabels[portType] ?? DEFAULT_PORT_TYPE_LABELS[portType] ?? portType.slice(0, 3)) : "";
-  if (pxPerInch) {
-    const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
-    const el = portElementInches(portType);
-    const ew = Math.max(5, Math.round(el.w * ppi));
-    const eh = Math.max(5, Math.round(el.h * ppi));
-    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
-    return (
-      <div className="grid" style={{ gridTemplateColumns: `repeat(${per}, ${ew}px)`, gap }}>
-        {slots.map((n) => {
-          const connected = connectedSet.has(n);
-          return (
-            <button
-              key={n}
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => { e.stopPropagation(); onInspect(`port:${groupId}:${n}`); }}
-              style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 8)) }}
-              className={`flex cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border font-bold leading-none ${
-                connected ? portTypeClass(portType ?? "ETHERNET") : PORT_EMPTY_CLASS
-              }`}
-              title={`${portType ?? "Port"} ${n}${connected ? " (connected)" : ""}`}
-            >
-              {eh >= 11 ? shortLabel : ""}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
+  const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
+  const el = portElementInches(portType);
+  const ew = Math.max(5, Math.round(el.w * ppi));
+  const eh = Math.max(5, Math.round(el.h * ppi));
+  const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
   return (
-    <div className="flex flex-col gap-[3px]">
-      {rows.map((row, ri) => (
-        <div key={ri} className="flex gap-[3px]">
-          {row.map((n) => {
-            const connected = connectedSet.has(n);
-            return (
-              <button
-                key={n}
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onInspect(`port:${groupId}:${n}`);
-                }}
-                style={{ width: sz, height: sz, fontSize: Math.max(5, sz - 6), lineHeight: `${sz}px` }}
-                className={`shrink-0 cursor-pointer overflow-hidden rounded-[1.5px] border font-bold text-center transition-transform hover:scale-125 hover:shadow-[0_0_7px_rgba(0,168,198,0.7)] ${
-                  connected ? portTypeClass(portType ?? "ETHERNET") : PORT_EMPTY_CLASS
-                }`}
-                title={`${portType ?? "Port"} ${n}${connected ? " (connected)" : ""}`}
-              >
-                {sz >= 10 && shortLabel}
-              </button>
-            );
-          })}
-        </div>
-      ))}
+    <div className="grid" style={{ gridTemplateColumns: `repeat(${per}, ${ew}px)`, gap }}>
+      {slots.map((n) => {
+        const connected = connectedSet.has(n);
+        return (
+          <button
+            key={n}
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onInspect(`port:${groupId}:${n}`); }}
+            style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 8)) }}
+            className={`flex cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border font-bold leading-none transition-transform hover:scale-125 hover:shadow-[0_0_7px_rgba(0,168,198,0.7)] ${
+              connected ? portTypeClass(portType ?? "ETHERNET") : PORT_EMPTY_CLASS
+            }`}
+            title={`${portType ?? "Port"} ${n}${connected ? " (connected)" : ""}`}
+          >
+            {eh >= 11 ? shortLabel : ""}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -2507,7 +2401,7 @@ export function OutletGrid({
   rows: rowsProp,
   columns: colsProp,
   hidden,
-  pxPerInch,
+  pxPerInch = U_PX / U_INCHES,
 }: {
   groupId: string;
   count: number;
@@ -2524,87 +2418,42 @@ export function OutletGrid({
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hideOutlets) return null;
-  // Per-user overlay: hide every outlet of this connector type across the rack.
-  if (outletType && prefs.hiddenElements.includes(`outletType:${outletType}`))
-    return null;
+  if (outletType && prefs.hiddenElements.includes(`outletType:${outletType}`)) return null;
   if (count <= 0) return null;
-  // Overhead: ~24px (margins+borders+zone-title+padding). sz=8 for 1U fits 2 rows (8+3+8=19px ≤ ~19px available).
-  const sz = Math.max(6, Math.min(Math.floor((heightU * U_PX - 24) / 2), 16));
   const hiddenSet = new Set(hidden ?? []);
   const slots = Array.from({ length: count }, (_, i) => i + 1).filter(
     (n) => !hiddenSet.has(n),
   );
   if (slots.length === 0) return null;
   const per =
-    colsProp && colsProp > 0
-      ? colsProp
-      : rowsProp && rowsProp > 0
-        ? Math.ceil(slots.length / rowsProp)
-        : Math.ceil(slots.length / 2);
-  const rows: number[][] = [];
-  for (let i = 0; i < slots.length; i += per) {
-    rows.push(slots.slice(i, i + per));
-  }
+    colsProp && colsProp > 0 ? colsProp
+    : rowsProp && rowsProp > 0 ? Math.ceil(slots.length / rowsProp)
+    : Math.ceil(slots.length / 2);
   const connectedSet = new Set(connectedOutlets);
   const icon = batteryBacked ? "B" : surgeProtected ? "~" : null;
-  if (pxPerInch) {
-    const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
-    const d = Math.max(6, Math.round(ELEMENT_INCHES.outlet.w * ppi));
-    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
-    return (
-      <div className="grid" style={{ gridTemplateColumns: `repeat(${per}, ${d}px)`, gap }}>
-        {slots.map((n) => {
-          const connected = connectedSet.has(n);
-          return (
-            <button
-              key={n}
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => { e.stopPropagation(); onInspect(`outlet:${groupId}:${n}`); }}
-              style={{ width: d, height: d }}
-              className={`flex cursor-pointer items-center justify-center rounded-full border ${
-                connected ? "border-[#52d062]/60 bg-status-green/25" : "border-[#3a424d] bg-[#2a313b]"
-              }`}
-              title={`Outlet ${n}${connected ? " (connected)" : batteryBacked ? " (battery-backed)" : surgeProtected ? " (surge-protected)" : ""}`}
-            >
-              {icon && d >= 10 && <span className={`text-[6px] font-bold leading-none ${connected ? "text-[#0d1117]" : "text-faint"}`}>{icon}</span>}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
+  const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
+  const d = Math.max(6, Math.round(ELEMENT_INCHES.outlet.w * ppi));
+  const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
   return (
-    <div className="flex flex-col gap-[3px]">
-      {rows.map((row, ri) => (
-        <div key={ri} className="flex gap-[3px]">
-          {row.map((n) => {
-            const connected = connectedSet.has(n);
-            return (
-              <button
-                key={n}
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onInspect(`outlet:${groupId}:${n}`);
-                }}
-                style={{ width: sz, height: sz }}
-                className={`shrink-0 cursor-pointer rounded-full border transition-transform hover:scale-125 hover:shadow-[0_0_7px_rgba(0,168,198,0.7)] flex items-center justify-center ${
-                  connected
-                    ? "border-[#52d062]/60 bg-status-green/25"
-                    : "border-[#3a424d] bg-[#2a313b]"
-                }`}
-                title={`Outlet ${n}${connected ? " (connected)" : batteryBacked ? " (battery-backed)" : surgeProtected ? " (surge-protected)" : ""}`}
-              >
-                {sz >= 8 && icon && (
-                  <span className={`text-[5px] font-bold leading-none ${connected ? "text-[#0d1117]" : "text-faint"}`}>{icon}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      ))}
+    <div className="grid" style={{ gridTemplateColumns: `repeat(${per}, ${d}px)`, gap }}>
+      {slots.map((n) => {
+        const connected = connectedSet.has(n);
+        return (
+          <button
+            key={n}
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onInspect(`outlet:${groupId}:${n}`); }}
+            style={{ width: d, height: d }}
+            className={`flex cursor-pointer items-center justify-center rounded-full border transition-transform hover:scale-125 hover:shadow-[0_0_7px_rgba(0,168,198,0.7)] ${
+              connected ? "border-[#52d062]/60 bg-status-green/25" : "border-[#3a424d] bg-[#2a313b]"
+            }`}
+            title={`Outlet ${n}${connected ? " (connected)" : batteryBacked ? " (battery-backed)" : surgeProtected ? " (surge-protected)" : ""}`}
+          >
+            {icon && d >= 10 && <span className={`text-[6px] font-bold leading-none ${connected ? "text-[#0d1117]" : "text-faint"}`}>{icon}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -2659,7 +2508,7 @@ export function NicGrid({
   sfp,
   heightU,
   onInspect,
-  pxPerInch,
+  pxPerInch = U_PX / U_INCHES,
 }: {
   assetId: string;
   ethernet: number;
@@ -2670,62 +2519,28 @@ export function NicGrid({
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hidePorts) return null;
-  const sz = Math.min(portSize(heightU) + 2, 15);
-  const showLabel = sz >= 10;
-  if (pxPerInch) {
-    const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
-    const el = ELEMENT_INCHES.port;
-    const ew = Math.max(5, Math.round(el.w * ppi));
-    const eh = Math.max(5, Math.round(el.h * ppi));
-    const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
-    const big = eh >= 11;
-    return (
-      <div className="flex" style={{ gap }}>
-        {Array.from({ length: ethernet }, (_, i) => (
-          <button
-            key={`eth-${i}`}
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); onInspect(`nic:${assetId}:eth:${i + 1}`); }}
-            style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 8)) }}
-            className="flex cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border border-[#3a424d] bg-[#2a313b] font-bold leading-none text-faint"
-            title={`NIC ${i + 1}`}
-          >
-            {big ? "GbE" : ""}
-          </button>
-        ))}
-        {Array.from({ length: sfp }, (_, i) => (
-          <button
-            key={`sfp-${i}`}
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); onInspect(`nic:${assetId}:sfp:${i + 1}`); }}
-            style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 8)) }}
-            className={`flex cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border font-bold leading-none ${PORT_EMPTY_CLASS}`}
-            title={`SFP ${i + 1}`}
-          >
-            {big ? "S+" : ""}
-          </button>
-        ))}
-      </div>
-    );
-  }
+  const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
+  const ethEl = ELEMENT_INCHES.port;
+  const sfpEl = ELEMENT_INCHES.portSfp;
+  const ew = Math.max(5, Math.round(ethEl.w * ppi));
+  const eh = Math.max(5, Math.round(ethEl.h * ppi));
+  const sw = Math.max(5, Math.round(sfpEl.w * ppi));
+  const sh = Math.max(5, Math.round(sfpEl.h * ppi));
+  const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
+  const big = eh >= 11;
   return (
-    <div className="flex gap-[3px]">
+    <div className="flex" style={{ gap }}>
       {Array.from({ length: ethernet }, (_, i) => (
         <button
           key={`eth-${i}`}
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onInspect(`nic:${assetId}:eth:${i + 1}`);
-          }}
-          style={{ width: sz, height: sz, fontSize: Math.max(5, sz - 6), lineHeight: `${sz}px` }}
-          className="shrink-0 cursor-pointer overflow-hidden rounded-[1.5px] border border-[#3a424d] bg-[#2a313b] font-bold text-center text-faint transition-transform hover:scale-125 hover:shadow-[0_0_7px_rgba(0,168,198,0.7)]"
+          onClick={(e) => { e.stopPropagation(); onInspect(`nic:${assetId}:eth:${i + 1}`); }}
+          style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 8)) }}
+          className="flex cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border border-[#3a424d] bg-[#2a313b] font-bold leading-none text-faint transition-transform hover:scale-125 hover:shadow-[0_0_7px_rgba(0,168,198,0.7)]"
           title={`NIC ${i + 1}`}
         >
-          {showLabel && "GbE"}
+          {big ? "GbE" : ""}
         </button>
       ))}
       {Array.from({ length: sfp }, (_, i) => (
@@ -2733,15 +2548,12 @@ export function NicGrid({
           key={`sfp-${i}`}
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onInspect(`nic:${assetId}:sfp:${i + 1}`);
-          }}
-          style={{ width: sz, height: sz, fontSize: Math.max(5, sz - 6), lineHeight: `${sz}px` }}
-          className={`shrink-0 cursor-pointer overflow-hidden rounded-[1.5px] border font-bold text-center transition-transform hover:scale-125 hover:shadow-[0_0_7px_rgba(0,168,198,0.7)] ${PORT_EMPTY_CLASS}`}
+          onClick={(e) => { e.stopPropagation(); onInspect(`nic:${assetId}:sfp:${i + 1}`); }}
+          style={{ width: sw, height: sh, fontSize: Math.max(5, Math.min(sh - 4, 8)) }}
+          className={`flex cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border font-bold leading-none transition-transform hover:scale-125 hover:shadow-[0_0_7px_rgba(0,168,198,0.7)] ${PORT_EMPTY_CLASS}`}
           title={`SFP ${i + 1}`}
         >
-          {showLabel && "S+"}
+          {sh >= 11 ? "S+" : ""}
         </button>
       ))}
     </div>
@@ -2756,6 +2568,7 @@ function PciNicGrid({
   portSpeed,
   heightU,
   onInspect,
+  pxPerInch = U_PX / U_INCHES,
 }: {
   componentId: string;
   slotSortOrder: number;
@@ -2764,12 +2577,12 @@ function PciNicGrid({
   portSpeed?: string | null;
   heightU: number;
   onInspect: (target: string) => void;
+  pxPerInch?: number;
 }) {
   const { portLabels } = useDiagramSettings();
   const prefs = useDiagramPrefs();
   if (prefs.hidePorts) return null;
   if (portCount <= 0) return null;
-  const sz = portSize(heightU);
   const per = Math.ceil(portCount / 2);
   const slots = Array.from({ length: portCount }, (_, i) => i + 1);
   const rows: number[][] = [];
@@ -2778,10 +2591,15 @@ function PciNicGrid({
     if (row.length > 0) rows.push(row);
   }
   const shortLabel = portType ? (portLabels[portType] ?? DEFAULT_PORT_TYPE_LABELS[portType] ?? portType.slice(0, 3)) : "N";
+  const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
+  const el = portElementInches(portType);
+  const ew = Math.max(5, Math.round(el.w * ppi));
+  const eh = Math.max(5, Math.round(el.h * ppi));
+  const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
   return (
-    <div className="flex flex-col gap-[3px]">
+    <div className="flex flex-col" style={{ gap }}>
       {rows.map((row, ri) => (
-        <div key={ri} className="flex gap-[3px]">
+        <div key={ri} className="flex" style={{ gap }}>
           {row.map((n) => (
             <button
               key={n}
@@ -2791,11 +2609,11 @@ function PciNicGrid({
                 e.stopPropagation();
                 onInspect(`nic-pcie:${componentId}:${n}`);
               }}
-              style={{ width: sz, height: sz, fontSize: Math.max(5, sz - 6), lineHeight: `${sz}px` }}
-              className={`shrink-0 cursor-pointer overflow-hidden rounded-[1.5px] border font-bold text-center transition-transform hover:scale-125 hover:shadow-[0_0_7px_rgba(0,168,198,0.7)] ${PORT_EMPTY_CLASS}`}
+              style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 8)) }}
+              className={`flex cursor-pointer items-center justify-center overflow-hidden rounded-[1.5px] border font-bold leading-none transition-transform hover:scale-125 hover:shadow-[0_0_7px_rgba(0,168,198,0.7)] ${PORT_EMPTY_CLASS}`}
               title={`Slot ${slotSortOrder + 1} · Port ${n}${portSpeed ? ` · ${portSpeed}` : ""}`}
             >
-              {sz >= 10 && shortLabel}
+              {eh >= 11 ? shortLabel : ""}
             </button>
           ))}
         </div>
