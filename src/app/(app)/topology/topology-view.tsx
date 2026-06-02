@@ -179,6 +179,17 @@ export function TopologyView({
       return next;
     });
   }, []);
+  // Set a non-boolean pref (opacity slider, hidden-element list) and persist.
+  const setPref = useCallback(
+    <K extends keyof DiagramPrefs>(key: K, value: DiagramPrefs[K]) => {
+      setViewPrefs((cur) => {
+        const next = { ...cur, [key]: value };
+        void saveDiagramPrefs(next);
+        return next;
+      });
+    },
+    [],
+  );
 
   const [draggingAsset, setDraggingAsset] = useState<DiagramAsset | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -390,7 +401,12 @@ export function TopologyView({
         ) : (
           <>
             <RackSwitcher racks={racks} currentRackId={diagramRack?.id} />
-            <DiagramFilterBar prefs={viewPrefs} onToggle={togglePref} />
+            <DiagramFilterBar
+              prefs={viewPrefs}
+              onToggle={togglePref}
+              setPref={setPref}
+              assets={diagramRack?.assets ?? []}
+            />
             {diagramRack ? (
               <Panel className="px-4 py-4">
                 {/* Mobile tab toggle — hidden on lg+ where both faces show side by side */}
@@ -545,44 +561,286 @@ export function TopologyView({
   );
 }
 
-// Toggle chips for the rack-view filters (issue 4). Persisted per-user.
+type MorePanelKind = "ports" | "bays" | "outlets";
+
+// Toggle chips for the rack-view filters (issue 4). Persisted per-user. The
+// ports / drive bays / outlets toggles each expand a "more ▾" panel for hiding
+// specific items (a per-user view overlay, not edits to the asset's faceplate).
 function DiagramFilterBar({
   prefs,
   onToggle,
+  setPref,
+  assets,
 }: {
   prefs: DiagramPrefs;
   onToggle: (key: keyof DiagramPrefs) => void;
+  setPref: <K extends keyof DiagramPrefs>(key: K, value: DiagramPrefs[K]) => void;
+  assets: DiagramAsset[];
 }) {
-  const items: { key: keyof DiagramPrefs; label: string }[] = [
+  const [openPanel, setOpenPanel] = useState<MorePanelKind | null>(null);
+  const items: {
+    key: keyof DiagramPrefs;
+    label: string;
+    more?: MorePanelKind;
+  }[] = [
     { key: "hideNames", label: "Hide names" },
-    { key: "hidePorts", label: "Hide ports" },
-    { key: "hideBays", label: "Hide drive bays" },
+    { key: "hidePorts", label: "Hide ports", more: "ports" },
+    { key: "hideBays", label: "Hide drive bays", more: "bays" },
+    { key: "hideOutlets", label: "Hide outlets", more: "outlets" },
     { key: "imageMode", label: "Image mode" },
+    { key: "cornerControls", label: "Corner controls" },
   ];
+
+  const toggleElement = (elKey: string) => {
+    const has = prefs.hiddenElements.includes(elKey);
+    setPref(
+      "hiddenElements",
+      has
+        ? prefs.hiddenElements.filter((k) => k !== elKey)
+        : [...prefs.hiddenElements, elKey],
+    );
+  };
+
+  const showOpacity = prefs.cornerControls || prefs.imageMode;
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-text-dim">
-        View
-      </span>
-      {items.map((it) => {
-        const on = prefs[it.key];
-        return (
-          <button
-            key={it.key}
-            type="button"
-            onClick={() => onToggle(it.key)}
-            aria-pressed={on}
-            className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
-              on
-                ? "border-accent bg-accent/15 text-accent"
-                : "border-border bg-panel-2 text-text-dim hover:border-accent/40 hover:text-text"
-            }`}
-          >
-            {it.label}
-          </button>
-        );
-      })}
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-text-dim">
+          View
+        </span>
+        {items.map((it) => {
+          const on = prefs[it.key] as boolean;
+          return (
+            <span
+              key={it.key}
+              className={`flex items-stretch overflow-hidden rounded-md border ${
+                on
+                  ? "border-accent"
+                  : "border-border hover:border-accent/40"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => onToggle(it.key)}
+                aria-pressed={on}
+                className={`px-2.5 py-1 text-[12px] transition-colors ${
+                  on
+                    ? "bg-accent/15 text-accent"
+                    : "bg-panel-2 text-text-dim hover:text-text"
+                }`}
+              >
+                {it.label}
+              </button>
+              {it.more && (
+                <button
+                  type="button"
+                  title="Hide specific items"
+                  aria-expanded={openPanel === it.more}
+                  onClick={() =>
+                    setOpenPanel((cur) => (cur === it.more ? null : it.more!))
+                  }
+                  className={`border-l px-1.5 text-[11px] transition-colors ${
+                    on
+                      ? "border-accent/40 bg-accent/10 text-accent"
+                      : "border-border bg-panel-2 text-text-dim hover:text-text"
+                  }`}
+                >
+                  {openPanel === it.more ? "▴" : "▾"}
+                </button>
+              )}
+            </span>
+          );
+        })}
+      </div>
+
+      {showOpacity && (
+        <label className="flex w-fit items-center gap-2 text-[11px] text-text-dim">
+          Handle transparency
+          <input
+            type="range"
+            min={10}
+            max={100}
+            step={5}
+            value={prefs.controlOpacity}
+            onChange={(e) => setPref("controlOpacity", Number(e.target.value))}
+            className="h-1 w-32 cursor-pointer accent-accent"
+          />
+          <span className="w-8 tabular-nums text-text">{prefs.controlOpacity}%</span>
+        </label>
+      )}
+
+      {openPanel && (
+        <FilterMorePanel
+          kind={openPanel}
+          assets={assets}
+          hiddenElements={prefs.hiddenElements}
+          onToggleElement={toggleElement}
+        />
+      )}
     </div>
+  );
+}
+
+// Expanded picker for hiding specific ports / bay zones / outlet types. Reads
+// the current rack's assets to enumerate the available targets. Hidden = the
+// item is currently filtered out of this user's view.
+function FilterMorePanel({
+  kind,
+  assets,
+  hiddenElements,
+  onToggleElement,
+}: {
+  kind: MorePanelKind;
+  assets: DiagramAsset[];
+  hiddenElements: string[];
+  onToggleElement: (key: string) => void;
+}) {
+  const hidden = new Set(hiddenElements);
+  const wrap = "rounded-md border border-border bg-panel-2 p-3";
+
+  if (kind === "outlets") {
+    const types = Array.from(
+      new Set(
+        assets.flatMap((a) =>
+          a.outletGroups
+            .map((g) => g.outletType)
+            .filter((t): t is string => !!t),
+        ),
+      ),
+    ).sort();
+    if (types.length === 0)
+      return (
+        <div className={`${wrap} text-[11px] text-faint`}>
+          No outlet types in this rack.
+        </div>
+      );
+    return (
+      <div className={wrap}>
+        <p className="mb-2 text-[10px] uppercase tracking-wider text-text-dim">
+          Show outlet types
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {types.map((t) => {
+            const key = `outletType:${t}`;
+            const isHidden = hidden.has(key);
+            return (
+              <Chip
+                key={key}
+                active={!isHidden}
+                onClick={() => onToggleElement(key)}
+              >
+                {t}
+              </Chip>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ports / bays: group by asset.
+  const rows = assets
+    .map((a) => ({
+      asset: a,
+      groups:
+        kind === "ports"
+          ? a.portGroups.filter((g) => g.portCount > 0)
+          : [],
+      zones: kind === "bays" ? a.bayZones : [],
+    }))
+    .filter((r) => (kind === "ports" ? r.groups.length : r.zones.length) > 0);
+
+  if (rows.length === 0)
+    return (
+      <div className={`${wrap} text-[11px] text-faint`}>
+        {kind === "ports"
+          ? "No ports in this rack."
+          : "No drive bays in this rack."}
+      </div>
+    );
+
+  return (
+    <div className={`${wrap} flex max-h-72 flex-col gap-3 overflow-y-auto`}>
+      <p className="text-[10px] uppercase tracking-wider text-text-dim">
+        {kind === "ports" ? "Show ports (per group)" : "Show drive-bay zones"}
+      </p>
+      {rows.map(({ asset, groups, zones }) => (
+        <div key={asset.id} className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-bold text-text">
+            {asset.codename}
+          </span>
+          {kind === "ports"
+            ? groups.map((g) => (
+                <div key={g.id} className="flex flex-col gap-1 pl-2">
+                  <span className="text-[10px] text-text-dim">
+                    {g.name ?? g.portType}
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {Array.from({ length: g.portCount }, (_, i) => i + 1).map(
+                      (n) => {
+                        const key = `port:${g.id}:${n}`;
+                        return (
+                          <Chip
+                            key={key}
+                            small
+                            active={!hidden.has(key)}
+                            onClick={() => onToggleElement(key)}
+                          >
+                            {n}
+                          </Chip>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
+              ))
+            : zones.map((z) => {
+                const key = `bay:${z.id}`;
+                return (
+                  <div key={z.id} className="pl-2">
+                    <Chip
+                      active={!hidden.has(key)}
+                      onClick={() => onToggleElement(key)}
+                    >
+                      {z.name} · {z.bayCount} {z.driveSize}
+                    </Chip>
+                  </div>
+                );
+              })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Small toggle chip used by the filter "more" panels. active = visible.
+function Chip({
+  active,
+  small,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  small?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded border transition-colors ${
+        small ? "min-w-[20px] px-1 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]"
+      } ${
+        active
+          ? "border-accent/50 bg-accent/15 text-accent"
+          : "border-border bg-bg/40 text-faint line-through hover:text-text-dim"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -1094,6 +1352,64 @@ function gridPlacement(
 }
 
 
+// Top-corner drag + inspect handles. Used in image mode always, and in normal
+// mode when the user enables persistent corner controls. Transparency is the
+// user's `controlOpacity` pref so the handles can sit unobtrusively over a cell.
+function CornerControls({
+  assetId,
+  codename,
+  dragProps,
+  isTouch,
+  onInspect,
+  onSelectForPlace,
+}: {
+  assetId: string;
+  codename: string;
+  dragProps: Record<string, unknown>;
+  isTouch: boolean;
+  onInspect: (target: string) => void;
+  onSelectForPlace: (asset: { id: string; codename: string }) => void;
+}) {
+  const { controlOpacity } = useDiagramPrefs();
+  const opacity = controlOpacity / 100;
+  return (
+    <>
+      {/* Top-left: drag handle (desktop) / tap-to-select (touch) */}
+      <button
+        type="button"
+        {...dragProps}
+        onClick={
+          isTouch
+            ? (e) => {
+                e.stopPropagation();
+                onSelectForPlace({ id: assetId, codename });
+              }
+            : undefined
+        }
+        title="Move"
+        style={{ opacity }}
+        className="absolute left-0.5 top-0.5 z-10 flex h-5 w-5 cursor-grab items-center justify-center rounded bg-bg/70 text-[11px] text-text-dim hover:text-accent active:cursor-grabbing"
+      >
+        ⠿
+      </button>
+      {/* Top-right: open inspector */}
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onInspect(`asset:${assetId}`);
+        }}
+        title="Details"
+        style={{ opacity }}
+        className="absolute right-0.5 top-0.5 z-10 flex h-5 w-5 items-center justify-center rounded bg-bg/70 text-[11px] text-accent/80 hover:text-accent"
+      >
+        ⓘ
+      </button>
+    </>
+  );
+}
+
 function DraggableAssetCell({
   asset,
   face,
@@ -1177,6 +1493,17 @@ function DraggableAssetCell({
         aria-hidden
         className={`absolute inset-y-0 left-0 w-[3px] ${stripe(asset.category)}`}
       />
+      {/* Persistent corner drag/inspect handles (opt-in, outside image mode). */}
+      {prefs.cornerControls && (
+        <CornerControls
+          assetId={asset.id}
+          codename={asset.codename}
+          dragProps={dragDisabled ? {} : { ...attributes, ...listeners }}
+          isTouch={isTouch}
+          onInspect={onInspect}
+          onSelectForPlace={onSelectForPlace}
+        />
+      )}
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
@@ -1206,12 +1533,16 @@ function DraggableAssetCell({
           <span className="truncate text-[11px] font-black leading-tight">
             {asset.codename}
           </span>
-          <span
-            aria-hidden
-            className="ml-auto shrink-0 text-[10px] leading-none text-accent/80"
-          >
-            ⓘ
-          </span>
+          {/* Inline inspect glyph — hidden when the persistent corner controls
+              are on, since the inspect handle then lives in the top-right. */}
+          {!prefs.cornerControls && (
+            <span
+              aria-hidden
+              className="ml-auto shrink-0 text-[10px] leading-none text-accent/80"
+            >
+              ⓘ
+            </span>
+          )}
         </span>
         {!isOneU && (
           <span className="mt-0.5 truncate text-[9px] font-normal leading-tight text-text-dim">
@@ -1304,36 +1635,14 @@ function ImageModeCell({
         </div>
       )}
 
-      {/* Top-left: drag handle (desktop) / tap-to-select (touch) */}
-      <button
-        type="button"
-        {...dragProps}
-        onClick={
-          isTouch
-            ? (e) => {
-                e.stopPropagation();
-                onSelectForPlace({ id: asset.id, codename: asset.codename });
-              }
-            : undefined
-        }
-        title="Move"
-        className="absolute left-0.5 top-0.5 z-10 flex h-5 w-5 cursor-grab items-center justify-center rounded bg-bg/70 text-[11px] text-text-dim hover:text-accent active:cursor-grabbing"
-      >
-        ⠿
-      </button>
-      {/* Top-right: open inspector */}
-      <button
-        type="button"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
-          onInspect(`asset:${asset.id}`);
-        }}
-        title="Details"
-        className="absolute right-0.5 top-0.5 z-10 flex h-5 w-5 items-center justify-center rounded bg-bg/70 text-[11px] text-accent/80 hover:text-accent"
-      >
-        ⓘ
-      </button>
+      <CornerControls
+        assetId={asset.id}
+        codename={asset.codename}
+        dragProps={dragProps}
+        isTouch={isTouch}
+        onInspect={onInspect}
+        onSelectForPlace={onSelectForPlace}
+      />
     </div>
   );
 }
@@ -1430,7 +1739,7 @@ function CustomFaceplate({
     items.push({
       key: `outlet-${g.id}`, row: g.gridRow, col: g.gridCol,
       title: g.name ?? g.outletType ?? "POWER OUT",
-      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={g.connectedOutlets} heightU={heightU} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={cols} hidden={g.hiddenPorts} onInspect={onInspect} pxPerInch={ppi} />,
+      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={g.connectedOutlets} heightU={heightU} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} outletType={g.outletType} rows={g.rows} columns={cols} hidden={g.hiddenPorts} onInspect={onInspect} pxPerInch={ppi} />,
     });
   });
   asset.psus.forEach((p) => {
@@ -1667,7 +1976,7 @@ export function AssetFaceContent({
     if (cat === "UPS")
       return (
         <PlainLabel>
-          {asset.formFactor !== "TOWER" && <span className="text-base">🔋</span>}
+          <span className="text-base">🔋</span>
           <span>UPS</span>
         </PlainLabel>
       );
@@ -1838,6 +2147,7 @@ export function AssetFaceContent({
               heightU={asset.rackUnits ?? 1}
               batteryBacked={g.batteryBacked}
               surgeProtected={g.surgeProtected}
+              outletType={g.outletType}
               rows={g.rows}
               columns={g.columns}
               hidden={g.hiddenPorts}
@@ -1998,6 +2308,8 @@ export function DriveBayGrid({
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hideBays) return null;
+  // Per-user overlay: this specific bay zone is hidden in the user's view.
+  if (prefs.hiddenElements.includes(`bay:${zone.id}`)) return null;
   const size = BAY_SIZE[zone.driveSize] ?? BAY_SIZE.SFF;
   const drivesByBay = new Map(
     zone.drives
@@ -2126,8 +2438,16 @@ export function PortGrid({
   if (count <= 0) return null;
   const sz = portSize(heightU);
   // Hidden ports are omitted from the render but keep their port numbers so
-  // connections still address them correctly.
+  // connections still address them correctly. Union the asset's own hidden
+  // ports (faceplate layout) with the user's per-view "hide this port" overlay.
   const hiddenSet = new Set(hidden ?? []);
+  const userPrefix = `port:${groupId}:`;
+  for (const key of prefs.hiddenElements) {
+    if (key.startsWith(userPrefix)) {
+      const n = Number(key.slice(userPrefix.length));
+      if (Number.isFinite(n)) hiddenSet.add(n);
+    }
+  }
   const slots = Array.from({ length: count }, (_, i) => i + 1).filter(
     (n) => !hiddenSet.has(n),
   );
@@ -2213,6 +2533,7 @@ export function OutletGrid({
   heightU,
   batteryBacked,
   surgeProtected,
+  outletType,
   onInspect,
   rows: rowsProp,
   columns: colsProp,
@@ -2225,6 +2546,7 @@ export function OutletGrid({
   heightU: number;
   batteryBacked: boolean;
   surgeProtected: boolean;
+  outletType?: string | null;
   onInspect: (target: string) => void;
   rows?: number | null;
   columns?: number | null;
@@ -2232,7 +2554,10 @@ export function OutletGrid({
   pxPerInch?: number;
 }) {
   const prefs = useDiagramPrefs();
-  if (prefs.hidePorts) return null;
+  if (prefs.hideOutlets) return null;
+  // Per-user overlay: hide every outlet of this connector type across the rack.
+  if (outletType && prefs.hiddenElements.includes(`outletType:${outletType}`))
+    return null;
   if (count <= 0) return null;
   // Overhead: ~24px (margins+borders+zone-title+padding). sz=8 for 1U fits 2 rows (8+3+8=19px ≤ ~19px available).
   const sz = Math.max(6, Math.min(Math.floor((heightU * U_PX - 24) / 2), 16));
