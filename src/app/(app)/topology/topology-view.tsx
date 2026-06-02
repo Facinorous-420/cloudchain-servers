@@ -61,9 +61,9 @@ function useDiagramPrefs(): DiagramPrefs {
 
 // 1U = 40px — tall enough that 48-port 1U switches fit 2 port rows without clipping.
 const U_PX = 40;
-// Faceplate elements render a touch under true scale so a block's zone title
-// has room above it without overlapping the ports/bays.
-const FACEPLATE_RENDER_SCALE = 0.88;
+// Faceplate elements render at full true scale; the zone title sits on a
+// reserved line above each block, so no shrinking is needed.
+const FACEPLATE_RENDER_SCALE = 1;
 
 // Category accent for the 3px left stripe on each device card.
 const CATEGORY_STRIPE: Record<string, string> = {
