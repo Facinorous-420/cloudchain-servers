@@ -10,14 +10,15 @@ export const RACK_FACE_INCHES = 19; // default usable face width for rack gear
 export type FaceId = "FRONT" | "REAR";
 
 // Real-world element sizes in inches (width × height as mounted on the face).
+// Used to size each block's footprint and to bound how many fit per row/column.
 export const ELEMENT_INCHES = {
-  bayLFF: { w: 4.0, h: 1.0 }, // 3.5" drive in a caddy
-  baySFF: { w: 2.85, h: 0.62 }, // 2.5" drive in a caddy
+  bayLFF: { w: 3.0, h: 1.0 }, // 3.5" drive in a caddy, mounted flat
+  baySFF: { w: 1.12, h: 0.6 }, // 2.5" drive in a caddy
   bayM2: { w: 0.9, h: 0.45 },
   port: { w: 0.62, h: 0.55 }, // RJ45 jack
-  portSfp: { w: 0.53, h: 0.45 }, // SFP cage
-  outlet: { w: 0.9, h: 0.9 }, // C13 / NEMA
-  psu: { w: 3.3, h: 1.6 }, // PSU module
+  portSfp: { w: 0.5, h: 0.45 }, // SFP cage
+  outlet: { w: 0.95, h: 0.95 }, // C13 / NEMA
+  psu: { w: 3.0, h: 1.5 }, // PSU module
 } as const;
 
 export const ELEMENT_GAP_INCHES = 0.07;
@@ -79,17 +80,43 @@ function elementCount(b: BlockSpec): number {
   return b.count ?? 0;
 }
 
-// Resolve the effective columns for a block's element matrix. An explicit
-// `columns` wins; otherwise pick as many as fit across the face (a single row
-// when they fit, wrapping when they don't).
+// Physical limits on a block's element matrix, given the face geometry.
+//  - maxCols: most elements that fit across the face width
+//  - maxRows: most rows that fit in the device's U height
+//  - capacity: maxCols × maxRows (the most elements that fit at all)
+//  - minCols: fewest columns so the rows still fit the height
+//  - fits: whether all the block's elements fit on the face
+export function columnBounds(
+  b: BlockSpec,
+  faceWidthInches: number,
+): { maxCols: number; maxRows: number; minCols: number; capacity: number; fits: boolean } {
+  const el = elementInches(b);
+  const n = elementCount(b);
+  const faceHeightInches = U_INCHES * Math.max(1, Math.floor(b.rackUnits));
+  const maxCols = Math.max(1, Math.floor(faceWidthInches / (el.w + ELEMENT_GAP_INCHES)));
+  const maxRows = Math.max(1, Math.floor(faceHeightInches / (el.h + ELEMENT_GAP_INCHES)));
+  const capacity = maxCols * maxRows;
+  const minCols = Math.max(1, Math.ceil(n / maxRows));
+  return { maxCols, maxRows, minCols, capacity, fits: n <= capacity };
+}
+
+// Resolve the effective columns for a block's element matrix, always clamped so
+// every element fits the face: between minCols (enough rows for the height) and
+// maxCols (fits the width). An explicit `columns`/`rows` is honoured within
+// those bounds; otherwise default to filling the width in as few rows as fit.
 export function resolveColumns(b: BlockSpec, faceWidthInches: number): number {
   const n = elementCount(b);
   if (n <= 0) return 1;
-  if (b.columns && b.columns > 0) return Math.min(b.columns, n);
-  if (b.rows && b.rows > 0) return Math.max(1, Math.ceil(n / b.rows));
-  const el = elementInches(b);
-  const fit = Math.max(1, Math.floor(faceWidthInches / (el.w + ELEMENT_GAP_INCHES)));
-  return Math.min(n, fit);
+  const { maxCols, minCols } = columnBounds(b, faceWidthInches);
+  let cols: number;
+  if (b.columns && b.columns > 0) cols = b.columns;
+  else if (b.rows && b.rows > 0) cols = Math.ceil(n / b.rows);
+  else cols = Math.min(n, maxCols);
+  // Clamp to [minCols..maxCols]; minCols may exceed maxCols when it can't fit,
+  // in which case cap at maxCols (best effort) and the caller flags "doesn't fit".
+  cols = Math.min(cols, maxCols);
+  cols = Math.max(cols, Math.min(minCols, maxCols));
+  return Math.max(1, cols);
 }
 
 // Total physical size of a block's element matrix, in inches.

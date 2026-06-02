@@ -15,6 +15,7 @@ import {
   rectsOverlap,
   clampCell,
   resolveColumns,
+  columnBounds,
   type BlockSpec,
   ELEMENT_INCHES,
 } from "@/lib/faceplate";
@@ -71,7 +72,9 @@ type Block = {
   node: React.ReactNode;
   annotationKind?: "TEXT" | "SPACER" | "DIVIDER";
   text?: string | null;
-  shape?: { count: number; columns: number | null; cols: number }; // bay/port/outlet only
+  shape?: { count: number; columns: number | null; cols: number; min: number; max: number }; // bay/port/outlet only
+  fits?: boolean;
+  fitLabel?: string;
 };
 
 export function FaceplateDesigner({
@@ -154,32 +157,41 @@ export function FaceplateDesigner({
   const blocks: Block[] = [];
   asset.bayZones.forEach((z, i) => {
     const spec: BlockSpec = { kind: "bay", count: z.bayCount, columns: z.columns, driveSize: z.driveSize, rackUnits: rackUnits || 1 };
+    const cols = resolveColumns(spec, faceWidthInches);
+    const b = columnBounds(spec, faceWidthInches);
     blocks.push({
       id: `bay:${i}`, source: "bay", index: i,
       face: (z.faceSide === "REAR" ? "REAR" : "FRONT") as FaceId,
       row: z.gridRow ?? null, col: z.gridCol ?? null, span: blockSpan(spec, faceWidthInches),
-      shape: { count: z.bayCount, columns: z.columns ?? null, cols: resolveColumns(spec, faceWidthInches) },
-      node: <DriveBayGrid zone={z} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} />,
+      shape: { count: z.bayCount, columns: z.columns ?? null, cols, min: b.minCols, max: b.maxCols },
+      fits: b.fits, fitLabel: `${z.bayCount} ${z.driveSize} bays don't fit a ${rackUnits}U face (max ${b.capacity})`,
+      node: <DriveBayGrid zone={z} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} cols={cols} />,
     });
   });
   asset.portGroups.forEach((g, i) => {
     const spec: BlockSpec = { kind: "port", count: g.portCount, columns: g.columns, rows: g.rows, portType: g.portType, rackUnits: rackUnits || 1 };
+    const cols = resolveColumns(spec, faceWidthInches);
+    const b = columnBounds(spec, faceWidthInches);
     blocks.push({
       id: `port:${i}`, source: "port", index: i,
       face: ((g.face as FaceId) ?? "FRONT") as FaceId,
       row: g.gridRow ?? null, col: g.gridCol ?? null, span: blockSpan(spec, faceWidthInches),
-      shape: { count: g.portCount, columns: g.columns ?? null, cols: resolveColumns(spec, faceWidthInches) },
-      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={[]} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} />,
+      shape: { count: g.portCount, columns: g.columns ?? null, cols, min: b.minCols, max: b.maxCols },
+      fits: b.fits, fitLabel: `${g.portCount} ${g.portType} ports don't fit a ${rackUnits}U face (max ${b.capacity})`,
+      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={[]} portType={g.portType} rows={g.rows} columns={cols} hidden={g.hiddenPorts} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} />,
     });
   });
   asset.outletGroups.forEach((g, i) => {
     const spec: BlockSpec = { kind: "outlet", count: g.outletCount, columns: g.columns, rows: g.rows, rackUnits: rackUnits || 1 };
+    const cols = resolveColumns(spec, faceWidthInches);
+    const b = columnBounds(spec, faceWidthInches);
     blocks.push({
       id: `outlet:${i}`, source: "outlet", index: i,
       face: ((g.face as FaceId) ?? "REAR") as FaceId,
       row: g.gridRow ?? null, col: g.gridCol ?? null, span: blockSpan(spec, faceWidthInches),
-      shape: { count: g.outletCount, columns: g.columns ?? null, cols: resolveColumns(spec, faceWidthInches) },
-      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={[]} heightU={rackUnits || 1} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={noop} pxPerInch={PX_PER_INCH} />,
+      shape: { count: g.outletCount, columns: g.columns ?? null, cols, min: b.minCols, max: b.maxCols },
+      fits: b.fits, fitLabel: `${g.outletCount} outlets don't fit a ${rackUnits}U face (max ${b.capacity})`,
+      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={[]} heightU={rackUnits || 1} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={cols} hidden={g.hiddenPorts} onInspect={noop} pxPerInch={PX_PER_INCH} />,
     });
   });
   psus.forEach((p, i) => {
@@ -219,6 +231,7 @@ export function FaceplateDesigner({
   });
 
   const unplaced = blocks.filter((b) => b.row == null || b.col == null);
+  const fitIssues = blocks.filter((b) => b.fits === false);
 
   if (!ready) {
     return (
@@ -272,6 +285,14 @@ export function FaceplateDesigner({
       </div>
 
       {error && <p className="text-[11px] text-red-400">{error}</p>}
+
+      {fitIssues.length > 0 && (
+        <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] text-red-400">
+          <span className="font-bold">Doesn&apos;t fit the face: </span>
+          {fitIssues.map((b) => b.fitLabel).join("; ")}. Reduce the count or
+          increase the item&apos;s U height / width.
+        </div>
+      )}
 
       {/* Unplaced tray */}
       <div
@@ -368,8 +389,6 @@ function AnnotationVisual({
   );
 }
 
-const PX_PER_COL_STEP = 1;
-
 // Compact per-block toolbar: cols stepper (bay/port/outlet), text input,
 // delete (annotations). Shared by tray + grid chips.
 function ChipControls({
@@ -399,12 +418,30 @@ function ChipControls({
     return null;
   }
   if (block.shape) {
-    const cur = block.shape.columns ?? block.shape.cols;
+    const { cols: cur, min, max } = block.shape;
+    const canDec = cur > min;
+    const canInc = cur < max;
     return (
       <span className="flex items-center gap-0.5 text-[8px] text-text-dim" onPointerDown={(e) => e.stopPropagation()}>
-        <button type="button" className="px-0.5 hover:text-accent" onClick={() => onColumns(block.source, block.index, cur - PX_PER_COL_STEP)} title="Fewer columns">−</button>
-        <span className="tabular-nums">{cur}c</span>
-        <button type="button" className="px-0.5 hover:text-accent" onClick={() => onColumns(block.source, block.index, cur + PX_PER_COL_STEP)} title="More columns">+</button>
+        <button
+          type="button"
+          disabled={!canDec}
+          className="px-0.5 hover:text-accent disabled:opacity-30"
+          onClick={() => canDec && onColumns(block.source, block.index, cur - 1)}
+          title="Fewer columns"
+        >
+          −
+        </button>
+        <span className="tabular-nums" title={`${min}–${max} columns fit`}>{cur}c</span>
+        <button
+          type="button"
+          disabled={!canInc}
+          className="px-0.5 hover:text-accent disabled:opacity-30"
+          onClick={() => canInc && onColumns(block.source, block.index, cur + 1)}
+          title="More columns"
+        >
+          +
+        </button>
       </span>
     );
   }

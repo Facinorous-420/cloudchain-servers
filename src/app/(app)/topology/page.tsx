@@ -298,6 +298,7 @@ export default async function TopologyPage({
           state: a.state,
           requiresSupport: a.requiresSupport,
           depthInches: a.depthInches ?? null,
+          widthInches: a.widthInches ?? null,
           rackRenderFrontPath: a.rackRenderFrontPath,
           rackRenderRearPath: a.rackRenderRearPath,
           builtInGridRow: a.builtInGridRow,

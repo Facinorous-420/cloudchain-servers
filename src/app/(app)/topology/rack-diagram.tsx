@@ -58,6 +58,7 @@ export type DiagramAsset = {
   state: string;
   requiresSupport: boolean;
   depthInches: number | null;
+  widthInches?: number | null;
   // Image-render mode (issue 4): per-face image sized to the asset's U-space.
   rackRenderFrontPath?: string | null;
   rackRenderRearPath?: string | null;

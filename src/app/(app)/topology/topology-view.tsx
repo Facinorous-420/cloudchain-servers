@@ -44,6 +44,8 @@ import {
 import {
   FACE_COLS,
   U_INCHES,
+  RACK_FACE_INCHES,
+  resolveColumns,
   bayElementInches,
   portElementInches,
   ELEMENT_INCHES,
@@ -1388,6 +1390,7 @@ function CustomFaceplate({
 }) {
   const heightU = asset.rackUnits ?? 1;
   const ppi = pxPerInch ?? U_PX / U_INCHES;
+  const faceWidthInches = asset.widthInches && asset.widthInches > 0 ? asset.widthInches : RACK_FACE_INCHES;
   const dividerHeightPx = U_INCHES * heightU * ppi; // full device height
   type Placed = {
     key: string;
@@ -1401,27 +1404,30 @@ function CustomFaceplate({
   asset.bayZones.forEach((z) => {
     if ((z.faceSide === "REAR" ? "REAR" : "FRONT") !== face) return;
     if (z.gridRow == null || z.gridCol == null) return;
+    const cols = resolveColumns({ kind: "bay", count: z.bayCount, columns: z.columns, driveSize: z.driveSize, rackUnits: heightU }, faceWidthInches);
     items.push({
       key: `bay-${z.id}`, row: z.gridRow, col: z.gridCol, title: z.name,
-      node: <DriveBayGrid zone={z} heightU={heightU} onInspect={onInspect} pxPerInch={ppi} />,
+      node: <DriveBayGrid zone={z} heightU={heightU} onInspect={onInspect} pxPerInch={ppi} cols={cols} />,
     });
   });
   asset.portGroups.forEach((g) => {
     if ((g.face ?? "FRONT") !== face) return;
     if (g.gridRow == null || g.gridCol == null) return;
+    const cols = resolveColumns({ kind: "port", count: g.portCount, columns: g.columns, rows: g.rows, portType: g.portType, rackUnits: heightU }, faceWidthInches);
     items.push({
       key: `port-${g.id}`, row: g.gridRow, col: g.gridCol,
       title: g.name ?? PORT_TYPE_LABELS[g.portType as (typeof PORT_TYPES)[number]],
-      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={g.connectedPorts} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={heightU} onInspect={onInspect} pxPerInch={ppi} />,
+      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={g.connectedPorts} portType={g.portType} rows={g.rows} columns={cols} hidden={g.hiddenPorts} heightU={heightU} onInspect={onInspect} pxPerInch={ppi} />,
     });
   });
   asset.outletGroups.forEach((g) => {
     if ((g.face ?? "REAR") !== face) return;
     if (g.gridRow == null || g.gridCol == null) return;
+    const cols = resolveColumns({ kind: "outlet", count: g.outletCount, columns: g.columns, rows: g.rows, rackUnits: heightU }, faceWidthInches);
     items.push({
       key: `outlet-${g.id}`, row: g.gridRow, col: g.gridCol,
       title: g.name ?? g.outletType ?? "POWER OUT",
-      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={g.connectedOutlets} heightU={heightU} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={onInspect} pxPerInch={ppi} />,
+      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={g.connectedOutlets} heightU={heightU} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={cols} hidden={g.hiddenPorts} onInspect={onInspect} pxPerInch={ppi} />,
     });
   });
   asset.psus.forEach((p) => {
@@ -1979,11 +1985,13 @@ export function DriveBayGrid({
   heightU,
   onInspect,
   pxPerInch,
+  cols,
 }: {
   zone: DiagramAsset["bayZones"][number];
   heightU: number;
   onInspect: (target: string) => void;
   pxPerInch?: number;
+  cols?: number; // resolved/clamped columns from the faceplate layout
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hideBays) return null;
@@ -1994,10 +2002,12 @@ export function DriveBayGrid({
       .map((d) => [d.bayNumber as number, d]),
   );
   const bays = Array.from({ length: zone.bayCount }, (_, i) => i + 1);
-  // Explicit shape from the faceplate designer wins; otherwise fit rows to the
-  // device height as before.
+  // Resolved columns (clamped to fit the face) win; then explicit shape; then
+  // fit rows to the device height as before.
   const perRow =
-    zone.columns && zone.columns > 0
+    cols && cols > 0
+      ? cols
+      : zone.columns && zone.columns > 0
       ? zone.columns
       : zone.rows && zone.rows > 0
         ? Math.ceil(zone.bayCount / zone.rows)
