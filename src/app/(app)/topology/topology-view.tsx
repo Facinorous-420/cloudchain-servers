@@ -1523,7 +1523,7 @@ function CustomFaceplate({
   );
 }
 
-function AssetFaceContent({
+export function AssetFaceContent({
   asset,
   face,
   onInspect,
@@ -2009,7 +2009,7 @@ const BAY_SIZE: Record<string, { w: number; h: number }> = {
   M2:  { w: 24, h: 10 },
 };
 
-function DriveBayGrid({
+export function DriveBayGrid({
   zone,
   heightU,
   onInspect,
@@ -2071,7 +2071,7 @@ function portSize(heightU: number): number {
   return Math.max(7, Math.min(Math.floor((heightU * U_PX - 22 - 3) / 2), 15));
 }
 
-function PortGrid({
+export function PortGrid({
   groupId,
   count,
   connectedPorts,
@@ -2151,7 +2151,7 @@ function PortGrid({
   );
 }
 
-function OutletGrid({
+export function OutletGrid({
   groupId,
   count,
   connectedOutlets,
@@ -2275,7 +2275,7 @@ function KvmGrid({
   );
 }
 
-function NicGrid({
+export function NicGrid({
   assetId,
   ethernet,
   sfp,

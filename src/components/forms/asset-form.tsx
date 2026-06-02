@@ -267,6 +267,9 @@ export function AssetForm({
   const [formFactor, setFormFactor] = useState(data.formFactor);
   const [patchPanelType, setPatchPanelType] = useState(data.patchPanelType || "KEYSTONE");
   const [heightInches, setHeightInches] = useState(data.heightInches);
+  // Controlled so the faceplate designer resizes live as the user edits them.
+  const [rackUnitsVal, setRackUnitsVal] = useState(data.rackUnits);
+  const [widthInchesVal, setWidthInchesVal] = useState(data.widthInches);
   // AP band support — stored as comma-separated "2.4,5,6"
   const [bands, setBands] = useState<string[]>(
     data.bandSupport ? data.bandSupport.split(",").filter(Boolean) : [],
@@ -278,6 +281,12 @@ export function AssetForm({
     if (!Number.isFinite(h) || h <= 0) return "";
     return String(Math.max(1, Math.ceil(h / 1.75)));
   })();
+  // Effective U + width used by the faceplate designer/preview.
+  const effectiveRackUnits =
+    parseInt(
+      (formFactor === "RACK" ? rackUnitsVal : derivedRackUnitsFromHeight) || "0",
+      10,
+    ) || 0;
 
   const err = (name: string) => state.fieldErrors?.[name]?.[0];
 
@@ -552,10 +561,23 @@ export function AssetForm({
               )}
               {formFactor === "RACK" ? (
                 <>
-                  {field("rackUnits", "Rack units (U)", "number", {
-                    required: true,
-                    hint: "How many U this asset occupies.",
-                  })}
+                  <Field
+                    label="Rack units (U)"
+                    htmlFor="rackUnits"
+                    required
+                    hint="How many U this asset occupies."
+                    error={err("rackUnits")}
+                  >
+                    <TextInput
+                      id="rackUnits"
+                      name="rackUnits"
+                      type="number"
+                      step="any"
+                      required
+                      value={rackUnitsVal}
+                      onChange={(e) => setRackUnitsVal(e.target.value)}
+                    />
+                  </Field>
                   {/* heightInches kept but not shown for RACK — submit the
                       stored value so it round-trips on edit. */}
                   <input
@@ -596,10 +618,23 @@ export function AssetForm({
                 </>
               )}
               {field("depthInches", "Depth (in)", "number")}
-              {requiresSupport &&
-                field("widthInches", "Width (in)", "number", {
-                  hint: "Used to place towers in the rack grid. Only relevant for free-standing gear.",
-                })}
+              {requiresSupport && (
+                <Field
+                  label="Width (in)"
+                  htmlFor="widthInches"
+                  hint="Used to place towers in the rack grid and size the faceplate designer. Required for tower custom layouts."
+                  error={err("widthInches")}
+                >
+                  <TextInput
+                    id="widthInches"
+                    name="widthInches"
+                    type="number"
+                    step="any"
+                    value={widthInchesVal}
+                    onChange={(e) => setWidthInchesVal(e.target.value)}
+                  />
+                </Field>
+              )}
             </div>
             <CheckboxField
               name="requiresSupport"
@@ -1005,17 +1040,13 @@ export function AssetForm({
                 name="rackRenderFrontPath"
                 faceLabel="Front"
                 defaultValue={data.rackRenderFrontPath}
-                rackUnits={
-                  parseInt(data.rackUnits || derivedRackUnitsFromHeight || "0", 10) || 0
-                }
+                rackUnits={effectiveRackUnits}
               />
               <RackRenderUpload
                 name="rackRenderRearPath"
                 faceLabel="Rear"
                 defaultValue={data.rackRenderRearPath}
-                rackUnits={
-                  parseInt(data.rackUnits || derivedRackUnitsFromHeight || "0", 10) || 0
-                }
+                rackUnits={effectiveRackUnits}
               />
             </div>
           </FieldSet>
@@ -1023,6 +1054,18 @@ export function AssetForm({
           {(isServerLike || hasPortGroups || hasOutletGroups || isKvm) && (
             <FieldSet legend="Faceplate layout (diagram positions)">
               <FaceplateDesigner
+                meta={{
+                  category,
+                  codename: data.codename,
+                  name: data.name,
+                  formFactor,
+                  rackUnits: effectiveRackUnits,
+                  widthInches: parseFloat(widthInchesVal) || 0,
+                  columnSpan: null,
+                  kvmChannelCount: parseInt(data.kvmChannelCount || "0", 10) || 0,
+                  psuCount: parseInt(data.psuCount || "0", 10) || 0,
+                  patchPanelType: patchPanelType || null,
+                }}
                 bayZones={bayZones}
                 onBayZones={setBayZones}
                 portGroups={portGroups}
