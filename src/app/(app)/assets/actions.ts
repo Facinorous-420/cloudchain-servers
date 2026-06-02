@@ -161,6 +161,8 @@ function bayZoneCreateData(zone: BayZoneInput) {
     sortOrder: zone.sortOrder,
     gridRow: zone.gridRow ?? null,
     gridCol: zone.gridCol ?? null,
+    rows: zone.rows ?? null,
+    columns: zone.columns ?? null,
   };
 }
 

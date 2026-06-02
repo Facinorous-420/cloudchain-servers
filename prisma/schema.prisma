@@ -284,9 +284,11 @@ model BayZone {
   bayCount    Int
   sortOrder   Int        @default(0)
   // Faceplate designer placement (issue 5) — grid cell origin on the face;
-  // null = auto-layout.
+  // null = auto-layout. rows/columns set the bay matrix shape (e.g. 3×4).
   gridRow     Int?
   gridCol     Int?
+  rows        Int?
+  columns     Int?
   drives      Drive[]
 }
 
@@ -458,6 +460,7 @@ enum DeviceSide {
 enum AnnotationKind {
   TEXT
   SPACER
+  DIVIDER
 }
 
 model FaceplateAnnotation {

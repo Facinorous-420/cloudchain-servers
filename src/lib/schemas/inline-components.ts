@@ -96,7 +96,7 @@ export const inlinePsusSchema = z.array(inlinePsuSchema);
 export const faceplateAnnotationSchema = z.object({
   id: z.string().optional(),
   face: z.enum(["FRONT", "REAR", "INTERIOR"]).default("FRONT"),
-  kind: z.enum(["TEXT", "SPACER"]),
+  kind: z.enum(["TEXT", "SPACER", "DIVIDER"]),
   text: z.string().nullable().optional(),
   gridRow: z.number().int().nonnegative().nullable().optional(),
   gridCol: z.number().int().nonnegative().nullable().optional(),

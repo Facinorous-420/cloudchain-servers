@@ -41,6 +41,7 @@ import {
   type DiagramPrefs,
   DEFAULT_DIAGRAM_PREFS,
 } from "@/lib/diagram-prefs";
+import { FACE_COLS, blockSpan } from "@/lib/faceplate";
 
 // View-pref context so the deep render tree (cards, port/bay grids) can read the
 // active filters without threading props through every level.
@@ -1377,146 +1378,102 @@ function CustomFaceplate({
   onInspect: (target: string) => void;
 }) {
   const heightU = asset.rackUnits ?? 1;
-  type Placed = { row: number; col: number; node: React.ReactNode };
+  type Placed = {
+    key: string;
+    row: number;
+    col: number;
+    w: number;
+    h: number;
+    title?: string;
+    node: React.ReactNode;
+  };
   const items: Placed[] = [];
 
   asset.bayZones.forEach((z) => {
     if ((z.faceSide === "REAR" ? "REAR" : "FRONT") !== face) return;
     if (z.gridRow == null || z.gridCol == null) return;
+    const { w, h } = blockSpan({ kind: "bay", count: z.bayCount, columns: z.columns, rackUnits: heightU });
     items.push({
-      row: z.gridRow,
-      col: z.gridCol,
-      node: (
-        <Zone key={`bay-${z.id}`} title={z.name}>
-          <DriveBayGrid zone={z} heightU={heightU} onInspect={onInspect} />
-        </Zone>
-      ),
+      key: `bay-${z.id}`, row: z.gridRow, col: z.gridCol, w, h, title: z.name,
+      node: <DriveBayGrid zone={z} heightU={heightU} onInspect={onInspect} />,
     });
   });
   asset.portGroups.forEach((g) => {
     if ((g.face ?? "FRONT") !== face) return;
     if (g.gridRow == null || g.gridCol == null) return;
+    const { w, h } = blockSpan({ kind: "port", count: g.portCount, columns: g.columns, rows: g.rows, rackUnits: heightU });
     items.push({
-      row: g.gridRow,
-      col: g.gridCol,
-      node: (
-        <Zone key={`port-${g.id}`} title={g.name ?? PORT_TYPE_LABELS[g.portType as (typeof PORT_TYPES)[number]]}>
-          <PortGrid
-            groupId={g.id}
-            count={g.portCount}
-            connectedPorts={g.connectedPorts}
-            portType={g.portType}
-            rows={g.rows}
-            columns={g.columns}
-            hidden={g.hiddenPorts}
-            heightU={heightU}
-            onInspect={onInspect}
-          />
-        </Zone>
-      ),
+      key: `port-${g.id}`, row: g.gridRow, col: g.gridCol, w, h,
+      title: g.name ?? PORT_TYPE_LABELS[g.portType as (typeof PORT_TYPES)[number]],
+      node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={g.connectedPorts} portType={g.portType} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} heightU={heightU} onInspect={onInspect} />,
     });
   });
   asset.outletGroups.forEach((g) => {
     if ((g.face ?? "REAR") !== face) return;
     if (g.gridRow == null || g.gridCol == null) return;
+    const { w, h } = blockSpan({ kind: "outlet", count: g.outletCount, columns: g.columns, rows: g.rows, rackUnits: heightU });
     items.push({
-      row: g.gridRow,
-      col: g.gridCol,
-      node: (
-        <Zone key={`outlet-${g.id}`} title={g.name ?? g.outletType ?? "POWER OUT"}>
-          <OutletGrid
-            groupId={g.id}
-            count={g.outletCount}
-            connectedOutlets={g.connectedOutlets}
-            heightU={heightU}
-            batteryBacked={g.batteryBacked}
-            surgeProtected={g.surgeProtected}
-            rows={g.rows}
-            columns={g.columns}
-            hidden={g.hiddenPorts}
-            onInspect={onInspect}
-          />
-        </Zone>
-      ),
+      key: `outlet-${g.id}`, row: g.gridRow, col: g.gridCol, w, h,
+      title: g.name ?? g.outletType ?? "POWER OUT",
+      node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={g.connectedOutlets} heightU={heightU} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={g.columns} hidden={g.hiddenPorts} onInspect={onInspect} />,
     });
   });
-  const placedPsus = asset.psus.filter(
-    (p) => (p.face ?? "REAR") === face && p.gridRow != null && p.gridCol != null,
-  );
-  if (placedPsus.length > 0) {
-    const first = placedPsus[0];
+  asset.psus.forEach((p) => {
+    if ((p.face ?? "REAR") !== face) return;
+    if (p.gridRow == null || p.gridCol == null) return;
     items.push({
-      row: first.gridRow ?? 1,
-      col: first.gridCol ?? 1,
-      node: (
-        <Zone key="psu" title="PSU">
-          <PsuGrid
-            assetId={asset.id}
-            psus={placedPsus}
-            psuCount={placedPsus.length}
-            connectedPsuOrders={asset.connectedPsuOrders}
-            heightU={heightU}
-            onInspect={onInspect}
-          />
-        </Zone>
-      ),
+      key: `psu-${p.id}`, row: p.gridRow, col: p.gridCol, w: 1, h: 1,
+      node: <PsuGrid assetId={asset.id} psus={[p]} psuCount={1} connectedPsuOrders={asset.connectedPsuOrders} heightU={heightU} onInspect={onInspect} />,
     });
-  }
+  });
   if (
     (asset.builtInFace ?? "REAR") === face &&
     asset.builtInGridRow != null &&
     asset.builtInGridCol != null &&
     ((asset.builtInEthernetCount ?? 0) > 0 || (asset.builtInSfpCount ?? 0) > 0)
   ) {
+    const { w, h } = blockSpan({ kind: "builtin", ethernet: asset.builtInEthernetCount ?? 0, sfp: asset.builtInSfpCount ?? 0, rackUnits: heightU });
     items.push({
-      row: asset.builtInGridRow,
-      col: asset.builtInGridCol,
-      node: (
-        <Zone key="builtin" title="NICS">
-          <NicGrid
-            assetId={asset.id}
-            ethernet={asset.builtInEthernetCount ?? 0}
-            sfp={asset.builtInSfpCount ?? 0}
-            heightU={heightU}
-            onInspect={onInspect}
-          />
-        </Zone>
-      ),
+      key: "builtin", row: asset.builtInGridRow, col: asset.builtInGridCol, w, h, title: "NICS",
+      node: <NicGrid assetId={asset.id} ethernet={asset.builtInEthernetCount ?? 0} sfp={asset.builtInSfpCount ?? 0} heightU={heightU} onInspect={onInspect} />,
     });
   }
   (asset.annotations ?? []).forEach((a, i) => {
     if ((a.face ?? "FRONT") !== face) return;
     if (a.gridRow == null || a.gridCol == null) return;
     items.push({
-      row: a.gridRow,
-      col: a.gridCol,
+      key: `anno-${i}`, row: a.gridRow, col: a.gridCol, w: 1, h: 1,
       node:
-        a.kind === "TEXT" ? (
-          <div key={`anno-${i}`} className="flex items-center px-1 text-[9px] font-bold uppercase tracking-[0.5px] text-text-dim">
-            {a.text}
-          </div>
+        a.kind === "DIVIDER" ? (
+          <span className="flex h-full w-full items-center justify-center"><span className="h-full w-px bg-text-dim/70" /></span>
+        ) : a.kind === "SPACER" ? (
+          <span className="block h-full w-full" />
         ) : (
-          <div key={`anno-${i}`} className="w-6" />
+          <span className="flex h-full w-full items-center justify-center overflow-hidden px-0.5 text-center text-[8px] font-bold uppercase leading-tight tracking-[0.3px] text-text-dim">{a.text}</span>
         ),
     });
   });
 
   if (items.length === 0) return <PlainLabel>{face}</PlainLabel>;
 
-  // Group into rows by gridRow, ordered; within a row order by gridCol.
-  const rowKeys = Array.from(new Set(items.map((it) => it.row))).sort((a, b) => a - b);
+  // Place each block at its exact grid cell, spanning its footprint.
   return (
-    <div className="flex flex-1 flex-col justify-center gap-1">
-      {rowKeys.map((rk) => (
-        <div key={rk} className="flex items-stretch gap-0">
-          {items
-            .filter((it) => it.row === rk)
-            .sort((a, b) => a.col - b.col)
-            .map((it, i) => (
-              <div key={i} className="flex">
-                {it.node}
-              </div>
-            ))}
+    <div
+      className="grid h-full w-full"
+      style={{ gridTemplateColumns: `repeat(${FACE_COLS}, 1fr)`, gridTemplateRows: `repeat(${Math.max(1, heightU)}, 1fr)` }}
+    >
+      {items.map((it) => (
+        <div
+          key={it.key}
+          style={{ gridColumn: `${it.col} / span ${it.w}`, gridRow: `${it.row} / span ${it.h}` }}
+          className="flex min-h-0 min-w-0 flex-col justify-center overflow-hidden"
+        >
+          {it.title && (
+            <div className="mb-0.5 truncate text-left text-[7px] font-black uppercase tracking-[0.7px] text-faint">
+              {it.title}
+            </div>
+          )}
+          <div className="min-h-0 overflow-hidden">{it.node}</div>
         </div>
       ))}
     </div>
@@ -2027,8 +1984,17 @@ export function DriveBayGrid({
       .map((d) => [d.bayNumber as number, d]),
   );
   const bays = Array.from({ length: zone.bayCount }, (_, i) => i + 1);
-  const rowsFit = Math.max(1, Math.floor((heightU * U_PX - 22) / (size.h + 3)));
-  const perRow = Math.ceil(zone.bayCount / rowsFit);
+  // Explicit shape from the faceplate designer wins; otherwise fit rows to the
+  // device height as before.
+  const perRow =
+    zone.columns && zone.columns > 0
+      ? zone.columns
+      : zone.rows && zone.rows > 0
+        ? Math.ceil(zone.bayCount / zone.rows)
+        : Math.ceil(
+            zone.bayCount /
+              Math.max(1, Math.floor((heightU * U_PX - 22) / (size.h + 3))),
+          );
   return (
     <div
       className="flex flex-wrap content-center gap-[3px]"

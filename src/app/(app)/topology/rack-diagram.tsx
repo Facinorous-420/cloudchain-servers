@@ -108,6 +108,8 @@ export type DiagramAsset = {
     bayCount: number;
     gridRow?: number | null;
     gridCol?: number | null;
+    rows?: number | null;
+    columns?: number | null;
     drives: {
       id: string;
       name: string;

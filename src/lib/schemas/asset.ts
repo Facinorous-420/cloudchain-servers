@@ -28,6 +28,8 @@ export const bayZoneSchema = z.object({
   // Faceplate designer placement (issue 5).
   gridRow: z.number().int().nonnegative().nullable().optional(),
   gridCol: z.number().int().nonnegative().nullable().optional(),
+  rows: z.number().int().positive().nullable().optional(),
+  columns: z.number().int().positive().nullable().optional(),
 });
 export type BayZoneInput = z.infer<typeof bayZoneSchema>;
 

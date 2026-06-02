@@ -133,6 +133,8 @@ export default async function EditAssetPage({
       sortOrder: z.sortOrder,
       gridRow: z.gridRow,
       gridCol: z.gridCol,
+      rows: z.rows,
+      columns: z.columns,
     })),
     portGroups: asset.portGroups.map((g) => ({
       id: g.id,
