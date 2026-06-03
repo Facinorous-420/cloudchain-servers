@@ -1086,6 +1086,8 @@ export async function saveAsPreset(
       bayZones: { orderBy: { sortOrder: "asc" } },
       portGroups: { orderBy: { sortOrder: "asc" } },
       outletGroups: { orderBy: { sortOrder: "asc" } },
+      psus: { orderBy: { sortOrder: "asc" } },
+      faceplateAnnotations: { orderBy: { sortOrder: "asc" } },
     },
   });
   if (!asset) return { ok: false, error: "Asset not found." };
@@ -1159,6 +1161,11 @@ export async function saveAsPreset(
       driveSize: z.driveSize,
       bayCount: z.bayCount,
       sortOrder: z.sortOrder,
+      ...(z.vertical && { vertical: z.vertical }),
+      ...(z.gridRow != null && { gridRow: z.gridRow }),
+      ...(z.gridCol != null && { gridCol: z.gridCol }),
+      ...(z.rows != null && { rows: z.rows }),
+      ...(z.columns != null && { columns: z.columns }),
     }));
   }
   if (asset.portGroups.length > 0) {
@@ -1170,6 +1177,12 @@ export async function saveAsPreset(
       ...(g.poePerPort != null && { poePerPort: g.poePerPort }),
       side: g.side,
       sortOrder: g.sortOrder,
+      ...(g.face && { face: g.face }),
+      ...(g.gridRow != null && { gridRow: g.gridRow }),
+      ...(g.gridCol != null && { gridCol: g.gridCol }),
+      ...(g.rows != null && { rows: g.rows }),
+      ...(g.columns != null && { columns: g.columns }),
+      ...(g.hiddenPorts && Array.isArray(g.hiddenPorts) && (g.hiddenPorts as number[]).length > 0 && { hiddenPorts: g.hiddenPorts }),
     }));
   }
   if (asset.outletGroups.length > 0) {
@@ -1181,8 +1194,40 @@ export async function saveAsPreset(
       surgeProtected: g.surgeProtected,
       side: g.side,
       sortOrder: g.sortOrder,
+      ...(g.face && { face: g.face }),
+      ...(g.gridRow != null && { gridRow: g.gridRow }),
+      ...(g.gridCol != null && { gridCol: g.gridCol }),
+      ...(g.rows != null && { rows: g.rows }),
+      ...(g.columns != null && { columns: g.columns }),
+      ...(g.hiddenPorts && Array.isArray(g.hiddenPorts) && (g.hiddenPorts as number[]).length > 0 && { hiddenPorts: g.hiddenPorts }),
     }));
   }
+  if (asset.psus.length > 0) {
+    preset.psus = asset.psus.map((p) => ({
+      sortOrder: p.sortOrder,
+      side: p.side,
+      ...(p.wattage != null && { wattage: p.wattage }),
+      portCount: p.portCount,
+      ...(p.face && { face: p.face }),
+      ...(p.gridRow != null && { gridRow: p.gridRow }),
+      ...(p.gridCol != null && { gridCol: p.gridCol }),
+    }));
+  }
+  if (asset.faceplateAnnotations.length > 0) {
+    preset.annotations = asset.faceplateAnnotations.map((a) => ({
+      face: a.face,
+      kind: a.kind,
+      ...(a.text && { text: a.text }),
+      ...(a.gridRow != null && { gridRow: a.gridRow }),
+      ...(a.gridCol != null && { gridCol: a.gridCol }),
+      rowSpan: a.rowSpan,
+      colSpan: a.colSpan,
+      sortOrder: a.sortOrder,
+    }));
+  }
+  if (asset.builtInGridRow != null) preset.builtInGridRow = asset.builtInGridRow;
+  if (asset.builtInGridCol != null) preset.builtInGridCol = asset.builtInGridCol;
+  if (asset.builtInFace) preset.builtInFace = asset.builtInFace;
 
   const { mkdir, writeFile } = await import("node:fs/promises");
   const path = await import("node:path");

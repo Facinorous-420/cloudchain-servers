@@ -51,6 +51,14 @@ const CHANGELOG: { version: string; date: string; entries: Entry[] }[] = [
       { type: "CHANGE_MINOR", text: "Mobile: list pages fit the screen (secondary columns collapse) with no sideways scrolling" },
       { type: "CHANGE_MINOR", text: "Mobile topology: tap a device then tap a slot or storage box to move it — no more fiddly drag-and-drop on touch" },
       { type: "CHANGE_MINOR", text: "List-page multi-select checkboxes now match the app's dark theme" },
+      // ── Faceplate designer ───────────────────────────────────────────────────
+      { type: "ADD", text: "Faceplate widget tray: each chip now shows its name (bay zone name, port group name/type, 'PSU', etc.) so you know what you're dragging before dropping" },
+      { type: "CHANGE_MAJOR", text: "Faceplate widget tray: chips are sized to their grid footprint — a 2-cell PSU is visually twice as wide as a 1-cell port group" },
+      { type: "CHANGE_MAJOR", text: "Column control replaced with rows×cols stepper (e.g. '2×4'); max columns is now capped at the element count so a 2-port group can never reach 27 columns" },
+      { type: "ADD", text: "One-tap ▭ (single row) and ▯ (vertical stack) presets alongside the fine ±1 stepper for fast layout" },
+      { type: "CHANGE_MINOR", text: "Bay rotate toggle changed to ↻ glyph; port/outlet V toggle removed (use the rows×cols stepper instead)" },
+      { type: "ADD", text: "Built-in onboard GbE/SFP ports now have a column/stack control; editing columns promotes them to real port groups with full position, hide-port, and preset-save support" },
+      { type: "ADD", text: "Presets now carry full faceplate layout (bay positions, port group faces/grid cells/columns, PSU placement, annotations) so a saved preset reopens with the same layout" },
     ],
   },
   {

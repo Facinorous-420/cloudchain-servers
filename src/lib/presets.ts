@@ -5,7 +5,7 @@ import type { AssetFormData } from "@/components/forms/asset-form";
 import type { BayZoneInput } from "@/lib/schemas/asset";
 import type { PortGroupInput } from "@/lib/schemas/port-group";
 import type { OutletGroupInput } from "@/lib/schemas/outlet-group";
-import type { InlinePciSlotInput } from "@/lib/schemas/inline-components";
+import type { InlinePciSlotInput, InlinePsuInput, FaceplateAnnotationInput } from "@/lib/schemas/inline-components";
 
 const PRESETS_ROOT = path.join(process.cwd(), "presets");
 const SYSTEM_BASE = path.join(PRESETS_ROOT, "system");
@@ -167,6 +167,10 @@ export function assetPresetToFormData(
     bayCount: z.bayCount,
     sortOrder: z.sortOrder ?? i,
     vertical: z.vertical ?? false,
+    gridRow: z.gridRow ?? null,
+    gridCol: z.gridCol ?? null,
+    rows: z.rows ?? null,
+    columns: z.columns ?? null,
   }));
 
   const portGroups: PortGroupInput[] = (preset.portGroups ?? []).map((g, i) => ({
@@ -177,6 +181,12 @@ export function assetPresetToFormData(
     poePerPort: g.poePerPort ?? null,
     side: g.side ?? "LEFT",
     sortOrder: g.sortOrder ?? i,
+    face: g.face ?? null,
+    gridRow: g.gridRow ?? null,
+    gridCol: g.gridCol ?? null,
+    rows: g.rows ?? null,
+    columns: g.columns ?? null,
+    hiddenPorts: g.hiddenPorts ?? null,
   }));
 
   const outletGroups: OutletGroupInput[] = (preset.outletGroups ?? []).map((g, i) => ({
@@ -187,6 +197,12 @@ export function assetPresetToFormData(
     surgeProtected: g.surgeProtected ?? true,
     side: g.side ?? "LEFT",
     sortOrder: g.sortOrder ?? i,
+    face: g.face ?? null,
+    gridRow: g.gridRow ?? null,
+    gridCol: g.gridCol ?? null,
+    rows: g.rows ?? null,
+    columns: g.columns ?? null,
+    hiddenPorts: g.hiddenPorts ?? null,
   }));
 
   return {
@@ -204,10 +220,19 @@ export function assetPresetToFormData(
     imageGallery,
     rackRenderFrontPath: "",
     rackRenderRearPath: "",
-    annotations: [],
-    builtInGridRow: "",
-    builtInGridCol: "",
-    builtInFace: "",
+    annotations: (preset.annotations ?? []).map((a, i): FaceplateAnnotationInput => ({
+      face: a.face,
+      kind: a.kind,
+      text: a.text ?? null,
+      gridRow: a.gridRow ?? null,
+      gridCol: a.gridCol ?? null,
+      rowSpan: a.rowSpan ?? 1,
+      colSpan: a.colSpan ?? 1,
+      sortOrder: a.sortOrder ?? i,
+    })),
+    builtInGridRow: preset.builtInGridRow != null ? String(preset.builtInGridRow) : "",
+    builtInGridCol: preset.builtInGridCol != null ? String(preset.builtInGridCol) : "",
+    builtInFace: preset.builtInFace ?? "",
     storageId: "",
     warrantyEndDate: "",
     biosVersion: "",
@@ -270,6 +295,15 @@ export function assetPresetToFormData(
       sortOrder: s.sortOrder ?? i,
       size: s.size,
     })),
-    psus: [],
+    psus: (preset.psus ?? []).map((p, i): InlinePsuInput => ({
+      sortOrder: p.sortOrder ?? i,
+      side: p.side ?? "LEFT",
+      wattage: p.wattage ?? null,
+      portCount: p.portCount ?? 1,
+      state: "IN_USE",
+      face: p.face ?? null,
+      gridRow: p.gridRow ?? null,
+      gridCol: p.gridCol ?? null,
+    })),
   };
 }

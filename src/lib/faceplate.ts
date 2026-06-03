@@ -92,7 +92,7 @@ function elementCount(b: BlockSpec): number {
 export function columnBounds(
   b: BlockSpec,
   faceWidthInches: number,
-): { maxCols: number; maxRows: number; minCols: number; capacity: number; fits: boolean } {
+): { maxCols: number; maxRows: number; minCols: number; capacity: number; fits: boolean; effMax: number } {
   const el = elementInches(b);
   const n = elementCount(b);
   const faceHeightInches = U_INCHES * Math.max(1, Math.floor(b.rackUnits));
@@ -100,7 +100,9 @@ export function columnBounds(
   const maxRows = Math.max(1, Math.floor(faceHeightInches / (el.h + ELEMENT_GAP_INCHES)));
   const capacity = maxCols * maxRows;
   const minCols = Math.max(1, Math.ceil(n / maxRows));
-  return { maxCols, maxRows, minCols, capacity, fits: n <= capacity };
+  // effMax caps columns at the element count — a 2-port group can't have 27 columns.
+  const effMax = Math.min(maxCols, n);
+  return { maxCols, maxRows, minCols, capacity, fits: n <= capacity, effMax };
 }
 
 // Resolve the effective columns for a block's element matrix, always clamped so

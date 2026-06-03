@@ -18,6 +18,11 @@ export const assetPresetBayZoneSchema = z.object({
   bayCount: z.number().int().positive(),
   sortOrder: z.number().int().nonnegative().default(0),
   vertical: z.boolean().optional().default(false),
+  // Faceplate layout (optional — null means auto-layout in the designer)
+  gridRow: z.number().int().nonnegative().optional(),
+  gridCol: z.number().int().nonnegative().optional(),
+  rows: z.number().int().positive().optional(),
+  columns: z.number().int().positive().optional(),
 });
 
 export const assetPresetPortGroupSchema = z.object({
@@ -28,6 +33,13 @@ export const assetPresetPortGroupSchema = z.object({
   poePerPort: z.number().int().nonnegative().optional(),
   side: z.enum(DEVICE_SIDES).default("LEFT"),
   sortOrder: z.number().int().nonnegative().default(0),
+  // Faceplate layout
+  face: z.enum(FACE_SIDES).optional(),
+  gridRow: z.number().int().nonnegative().optional(),
+  gridCol: z.number().int().nonnegative().optional(),
+  rows: z.number().int().positive().optional(),
+  columns: z.number().int().positive().optional(),
+  hiddenPorts: z.array(z.number().int().positive()).optional(),
 });
 
 export const assetPresetOutletGroupSchema = z.object({
@@ -38,6 +50,13 @@ export const assetPresetOutletGroupSchema = z.object({
   surgeProtected: z.boolean().default(true),
   side: z.enum(DEVICE_SIDES).default("LEFT"),
   sortOrder: z.number().int().nonnegative().default(0),
+  // Faceplate layout
+  face: z.enum(FACE_SIDES).optional(),
+  gridRow: z.number().int().nonnegative().optional(),
+  gridCol: z.number().int().nonnegative().optional(),
+  rows: z.number().int().positive().optional(),
+  columns: z.number().int().positive().optional(),
+  hiddenPorts: z.array(z.number().int().positive()).optional(),
 });
 
 export const assetPresetSchema = z.object({
@@ -125,6 +144,31 @@ export const assetPresetSchema = z.object({
   pciSlots: z.array(z.object({
     sortOrder: z.number().int().nonnegative().default(0),
     size: z.string(),
+  })).optional(),
+
+  // Faceplate designer layout — carried through preset save/load so a saved
+  // server re-opens with its port/bay positions intact.
+  builtInGridRow: z.number().int().nonnegative().optional(),
+  builtInGridCol: z.number().int().nonnegative().optional(),
+  builtInFace: z.enum(FACE_SIDES).optional(),
+  annotations: z.array(z.object({
+    face: z.enum(FACE_SIDES),
+    kind: z.enum(["TEXT", "SPACER", "DIVIDER"]),
+    text: z.string().nullable().optional(),
+    gridRow: z.number().int().nonnegative().nullable().optional(),
+    gridCol: z.number().int().nonnegative().nullable().optional(),
+    rowSpan: z.number().int().positive().default(1),
+    colSpan: z.number().int().positive().default(1),
+    sortOrder: z.number().int().nonnegative().default(0),
+  })).optional(),
+  psus: z.array(z.object({
+    sortOrder: z.number().int().nonnegative(),
+    wattage: z.number().int().positive().optional(),
+    portCount: z.number().int().positive().default(1),
+    side: z.enum(DEVICE_SIDES),
+    face: z.enum(FACE_SIDES).nullable().optional(),
+    gridRow: z.number().int().nonnegative().nullable().optional(),
+    gridCol: z.number().int().nonnegative().nullable().optional(),
   })).optional(),
 });
 
