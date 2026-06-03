@@ -143,7 +143,11 @@ export function groupInches(
 // physical size relative to the face. Pixel-independent, so the designer and the
 // rack always agree.
 export function blockSpan(b: BlockSpec, faceWidthInches: number): { w: number; h: number } {
-  if (b.kind === "annotation") return { w: 1, h: 1 };
+  if (b.kind === "annotation") {
+    // A DIVIDER runs the full device height; TEXT and SPACER occupy one row.
+    const h = b.annotationKind === "DIVIDER" ? Math.max(1, Math.floor(b.rackUnits)) : 1;
+    return { w: 1, h };
+  }
   const g = groupInches(b, faceWidthInches);
   return {
     w: clampCols(Math.ceil((FACE_COLS * g.wIn) / faceWidthInches)),

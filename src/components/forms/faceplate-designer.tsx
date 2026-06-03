@@ -54,8 +54,10 @@ export type FaceplateMeta = {
 // physical size (inches × PX_PER_INCH). The footprint maths is pixel-independent
 // so the diagram (at its own scale) lays things out identically.
 const PX_PER_INCH = 32;
+const TRAY_PPI = 12; // smaller scale for compact tray chip thumbnails
 const U_IN = 1.75;
 const ROW_H = Math.round(U_IN * PX_PER_INCH); // designer px per U
+const TRAY_ROW_H = Math.round(U_IN * TRAY_PPI); // tray chip px per U
 const RACK_WIDTH_INCHES = 19;
 const PREVIEW_U = 40; // preview px per U (matches the topology diagram)
 const PREVIEW_PPI = PREVIEW_U / U_IN;
@@ -69,16 +71,18 @@ type Block = {
   row: number | null;
   col: number | null;
   span: { w: number; h: number };
-  node: React.ReactNode;
+  node: React.ReactNode; // full-scale for placed grid
+  trayNode: React.ReactNode; // compact-scale for unplaced tray
   annotationKind?: "TEXT" | "SPACER" | "DIVIDER";
   text?: string | null;
   shape?: {
     count: number;
     columns: number | null;
     cols: number;
-    min: number;
-    max: number;
-    driveSize?: string; // bay blocks only — enables vertical toggle
+    min: number; // min columns
+    max: number; // max columns
+    maxRows: number; // max rows that fit (for V toggle limit)
+    driveSize?: string;
     vertical?: boolean;
   };
   fits?: boolean;
@@ -154,6 +158,13 @@ export function FaceplateDesigner({
     onBayZones(bayZones.map((z, i) => (i === idx ? { ...z, vertical, columns: null } : z)));
   }
 
+  // Toggle port/outlet V: collapse to minCols (most rows) or expand to maxCols (1 row).
+  function togglePortV(source: string, idx: number, toVertical: boolean, minCols: number, maxCols: number) {
+    const cols = toVertical ? minCols : maxCols;
+    if (source === "port") onPortGroups(portGroups.map((g, i) => (i === idx ? { ...g, columns: cols } : g)));
+    else if (source === "outlet") onOutletGroups(outletGroups.map((g, i) => (i === idx ? { ...g, columns: cols } : g)));
+  }
+
   function addAnnotation(kind: "TEXT" | "SPACER" | "DIVIDER") {
     onAnnotations([
       ...annotations,
@@ -172,13 +183,15 @@ export function FaceplateDesigner({
     const spec: BlockSpec = { kind: "bay", count: z.bayCount, columns: z.columns, driveSize: z.driveSize, vertical, rackUnits: rackUnits || 1 };
     const cols = resolveColumns(spec, faceWidthInches);
     const b = columnBounds(spec, faceWidthInches);
+    const trayCols = resolveColumns({ ...spec, columns: z.columns }, faceWidthInches);
     blocks.push({
       id: `bay:${i}`, source: "bay", index: i,
       face: (z.faceSide === "REAR" ? "REAR" : "FRONT") as FaceId,
       row: z.gridRow ?? null, col: z.gridCol ?? null, span: blockSpan(spec, faceWidthInches),
-      shape: { count: z.bayCount, columns: z.columns ?? null, cols, min: b.minCols, max: b.maxCols, driveSize: z.driveSize, vertical },
+      shape: { count: z.bayCount, columns: z.columns ?? null, cols, min: b.minCols, max: b.maxCols, maxRows: b.maxRows, driveSize: z.driveSize, vertical },
       fits: b.fits, fitLabel: `${z.bayCount} ${z.driveSize}${vertical ? " (vertical)" : ""} bays don't fit a ${rackUnits}U face (max ${b.capacity})`,
       node: <DriveBayGrid zone={{ ...z, vertical }} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} cols={cols} />,
+      trayNode: <DriveBayGrid zone={{ ...z, vertical }} heightU={rackUnits || 1} onInspect={noop} pxPerInch={TRAY_PPI} cols={trayCols} />,
     });
   });
   asset.portGroups.forEach((g, i) => {
@@ -189,9 +202,10 @@ export function FaceplateDesigner({
       id: `port:${i}`, source: "port", index: i,
       face: ((g.face as FaceId) ?? "FRONT") as FaceId,
       row: g.gridRow ?? null, col: g.gridCol ?? null, span: blockSpan(spec, faceWidthInches),
-      shape: { count: g.portCount, columns: g.columns ?? null, cols, min: b.minCols, max: b.maxCols },
+      shape: { count: g.portCount, columns: g.columns ?? null, cols, min: b.minCols, max: b.maxCols, maxRows: b.maxRows },
       fits: b.fits, fitLabel: `${g.portCount} ${g.portType} ports don't fit a ${rackUnits}U face (max ${b.capacity})`,
       node: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={[]} portType={g.portType} rows={g.rows} columns={cols} hidden={g.hiddenPorts} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} />,
+      trayNode: <PortGrid groupId={g.id} count={g.portCount} connectedPorts={[]} portType={g.portType} rows={g.rows} columns={cols} hidden={g.hiddenPorts} heightU={rackUnits || 1} onInspect={noop} pxPerInch={TRAY_PPI} />,
     });
   });
   asset.outletGroups.forEach((g, i) => {
@@ -202,23 +216,32 @@ export function FaceplateDesigner({
       id: `outlet:${i}`, source: "outlet", index: i,
       face: ((g.face as FaceId) ?? "REAR") as FaceId,
       row: g.gridRow ?? null, col: g.gridCol ?? null, span: blockSpan(spec, faceWidthInches),
-      shape: { count: g.outletCount, columns: g.columns ?? null, cols, min: b.minCols, max: b.maxCols },
+      shape: { count: g.outletCount, columns: g.columns ?? null, cols, min: b.minCols, max: b.maxCols, maxRows: b.maxRows },
       fits: b.fits, fitLabel: `${g.outletCount} outlets don't fit a ${rackUnits}U face (max ${b.capacity})`,
       node: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={[]} heightU={rackUnits || 1} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={cols} hidden={g.hiddenPorts} onInspect={noop} pxPerInch={PX_PER_INCH} />,
+      trayNode: <OutletGrid groupId={g.id} count={g.outletCount} connectedOutlets={[]} heightU={rackUnits || 1} batteryBacked={g.batteryBacked} surgeProtected={g.surgeProtected} rows={g.rows} columns={cols} hidden={g.hiddenPorts} onInspect={noop} pxPerInch={TRAY_PPI} />,
     });
   });
   psus.forEach((p, i) => {
+    const pw = Math.round(ELEMENT_INCHES.psu.w * PX_PER_INCH);
+    const ph = Math.round(ELEMENT_INCHES.psu.h * PX_PER_INCH);
+    const tpw = Math.round(ELEMENT_INCHES.psu.w * TRAY_PPI);
+    const tph = Math.round(ELEMENT_INCHES.psu.h * TRAY_PPI);
     blocks.push({
       id: `psu:${i}`, source: "psu", index: i,
       face: ((p.face as FaceId) ?? "REAR") as FaceId,
       row: p.gridRow ?? null, col: p.gridCol ?? null,
       span: blockSpan({ kind: "psu", rackUnits: rackUnits || 1 }, faceWidthInches),
       node: (
-        <span
-          className="flex items-center justify-center rounded-[2px] border border-status-green/60 bg-status-green/15 text-[9px] font-bold text-status-green"
-          style={{ width: ELEMENT_INCHES.psu.w * PX_PER_INCH, height: ELEMENT_INCHES.psu.h * PX_PER_INCH }}
-        >
+        <span className="flex items-center justify-center rounded-[2px] border border-status-green/60 bg-status-green/15 text-[9px] font-bold text-status-green"
+          style={{ width: pw, height: ph }}>
           ⚡ PSU
+        </span>
+      ),
+      trayNode: (
+        <span className="flex items-center justify-center rounded-[2px] border border-status-green/60 bg-status-green/15 text-[8px] font-bold text-status-green"
+          style={{ width: tpw, height: tph }}>
+          PSU
         </span>
       ),
     });
@@ -230,16 +253,19 @@ export function FaceplateDesigner({
       row: builtIn.gridRow, col: builtIn.gridCol,
       span: blockSpan({ kind: "builtin", ethernet: builtIn.ethernet, sfp: builtIn.sfp, rackUnits: rackUnits || 1 }, faceWidthInches),
       node: <NicGrid assetId="preview" ethernet={builtIn.ethernet} sfp={builtIn.sfp} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} />,
+      trayNode: <NicGrid assetId="preview" ethernet={builtIn.ethernet} sfp={builtIn.sfp} heightU={rackUnits || 1} onInspect={noop} pxPerInch={TRAY_PPI} />,
     });
   }
   annotations.forEach((a, i) => {
+    const annoSpan = blockSpan({ kind: "annotation", annotationKind: a.kind, rackUnits: rackUnits || 1 }, faceWidthInches);
     blocks.push({
       id: `anno:${i}`, source: "anno", index: i,
       face: ((a.face as FaceId) ?? "FRONT") as FaceId,
       row: a.gridRow ?? null, col: a.gridCol ?? null,
-      span: blockSpan({ kind: "annotation", annotationKind: a.kind, rackUnits: rackUnits || 1 }, faceWidthInches),
+      span: annoSpan,
       annotationKind: a.kind, text: a.text,
-      node: <AnnotationVisual kind={a.kind} text={a.text} heightPx={a.kind === "DIVIDER" ? rackUnits * ROW_H : ROW_H} />,
+      node: <AnnotationVisual kind={a.kind} text={a.text} heightPx={annoSpan.h * ROW_H} />,
+      trayNode: <AnnotationVisual kind={a.kind} text={a.text} heightPx={annoSpan.h * TRAY_ROW_H} />,
     });
   });
 
@@ -323,7 +349,7 @@ export function FaceplateDesigner({
         <div className="flex flex-wrap items-start gap-1.5">
           {unplaced.length === 0 && <span className="text-[11px] text-faint">Everything is placed.</span>}
           {unplaced.map((b) => (
-            <TrayChip key={b.id} block={b} onTextChange={updateAnnotationText} onRemove={removeAnnotation} onColumns={setColumns} onVertical={setVertical} />
+            <TrayChip key={b.id} block={b} onTextChange={updateAnnotationText} onRemove={removeAnnotation} onColumns={setColumns} onVertical={setVertical} onPortV={togglePortV} />
           ))}
         </div>
       </div>
@@ -360,7 +386,7 @@ export function FaceplateDesigner({
                       height: b.span.h * ROW_H,
                     }}
                   >
-                    <GridChip block={b} onTextChange={updateAnnotationText} onRemove={removeAnnotation} onColumns={setColumns} onVertical={setVertical} />
+                    <GridChip block={b} onTextChange={updateAnnotationText} onRemove={removeAnnotation} onColumns={setColumns} onVertical={setVertical} onPortV={togglePortV} />
                   </div>
                 ))}
               </div>
@@ -410,12 +436,14 @@ function ChipControls({
   onRemove,
   onColumns,
   onVertical,
+  onPortV,
 }: {
   block: Block;
   onTextChange: (idx: number, text: string) => void;
   onRemove: (idx: number) => void;
   onColumns: (source: string, idx: number, columns: number) => void;
   onVertical: (idx: number, vertical: boolean) => void;
+  onPortV: (source: string, idx: number, toVertical: boolean, min: number, max: number) => void;
 }) {
   if (block.source === "anno") {
     if (block.annotationKind === "TEXT") {
@@ -425,7 +453,7 @@ function ChipControls({
           onChange={(e) => onTextChange(block.index, e.target.value)}
           onPointerDown={(e) => e.stopPropagation()}
           draggable={false}
-          className="w-16 bg-transparent text-[9px] text-text outline-none placeholder:text-faint"
+          className="w-16 rounded bg-panel px-1 py-0.5 text-[9px] text-text outline-none placeholder:text-faint"
           placeholder="Label"
         />
       );
@@ -433,18 +461,33 @@ function ChipControls({
     return null;
   }
   if (block.shape) {
-    const { cols: cur, min, max, driveSize, vertical } = block.shape;
+    const { cols: cur, min, max, maxRows, driveSize, vertical } = block.shape;
     const canDec = cur > min;
     const canInc = cur < max;
-    const canVertical = block.source === "bay" && driveSize && driveSize !== "LFF";
+    const isBayVerticalable = block.source === "bay" && driveSize && driveSize !== "LFF";
+    const isPortStacks = (block.source === "port" || block.source === "outlet") && maxRows > 1;
+    const portIsVertical = isPortStacks && cur === min;
     return (
-      <span className="flex items-center gap-0.5 text-[8px] text-text-dim" onPointerDown={(e) => e.stopPropagation()}>
-        {canVertical && (
+      <span
+        className="flex items-center gap-px rounded bg-[#1a2030] px-1.5 py-0.5 text-[9px] text-text-dim"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {isBayVerticalable && (
           <button
             type="button"
-            className={`px-0.5 font-bold transition-colors ${vertical ? "text-accent" : "hover:text-accent"}`}
+            className={`px-0.5 font-bold transition-colors ${vertical ? "text-accent" : "text-text-dim hover:text-accent"}`}
             onClick={() => onVertical(block.index, !vertical)}
-            title={vertical ? "Switch to horizontal bays" : "Switch to vertical bays (portrait slot orientation)"}
+            title={vertical ? "Switch to horizontal bays" : "Switch to vertical bays (portrait slot)"}
+          >
+            V
+          </button>
+        )}
+        {isPortStacks && (
+          <button
+            type="button"
+            className={`px-0.5 font-bold transition-colors ${portIsVertical ? "text-accent" : "text-text-dim hover:text-accent"}`}
+            onClick={() => onPortV(block.source, block.index, !portIsVertical, min, max)}
+            title={portIsVertical ? "Switch to horizontal (1 row)" : "Stack vertically (max rows)"}
           >
             V
           </button>
@@ -452,17 +495,17 @@ function ChipControls({
         <button
           type="button"
           disabled={!canDec}
-          className="px-0.5 hover:text-accent disabled:opacity-30"
+          className="px-0.5 text-text hover:text-accent disabled:opacity-30"
           onClick={() => canDec && onColumns(block.source, block.index, cur - 1)}
           title="Fewer columns"
         >
           −
         </button>
-        <span className="tabular-nums" title={`${min}–${max} columns fit`}>{cur}c</span>
+        <span className="tabular-nums text-text" title={`${min}–${max} columns fit`}>{cur}c</span>
         <button
           type="button"
           disabled={!canInc}
-          className="px-0.5 hover:text-accent disabled:opacity-30"
+          className="px-0.5 text-text hover:text-accent disabled:opacity-30"
           onClick={() => canInc && onColumns(block.source, block.index, cur + 1)}
           title="More columns"
         >
@@ -474,31 +517,28 @@ function ChipControls({
   return null;
 }
 
-function TrayChip({
-  block,
-  onTextChange,
-  onRemove,
-  onColumns,
-  onVertical,
-}: {
+type ChipProps = {
   block: Block;
   onTextChange: (idx: number, text: string) => void;
   onRemove: (idx: number) => void;
   onColumns: (source: string, idx: number, columns: number) => void;
   onVertical: (idx: number, vertical: boolean) => void;
-}) {
+  onPortV: (source: string, idx: number, toV: boolean, min: number, max: number) => void;
+};
+
+function TrayChip({ block, onTextChange, onRemove, onColumns, onVertical, onPortV }: ChipProps) {
   return (
     <div
       draggable
       onDragStart={(e) => { e.dataTransfer.setData("text/plain", block.id); e.dataTransfer.effectAllowed = "move"; }}
-      className="group/chip relative flex cursor-grab flex-col gap-0.5 rounded border border-accent/40 bg-bg/70 p-1 active:cursor-grabbing"
+      className="group/chip relative flex cursor-grab flex-col gap-1 rounded border border-accent/40 bg-bg/70 p-1.5 active:cursor-grabbing"
       title="Drag onto a face"
     >
-      <div className="pointer-events-none flex max-w-[240px] items-center justify-center overflow-hidden">
-        {block.node}
+      <div className="pointer-events-none flex items-start justify-start">
+        {block.trayNode}
       </div>
       <div className="flex items-center justify-between gap-1">
-        <ChipControls block={block} onTextChange={onTextChange} onRemove={onRemove} onColumns={onColumns} onVertical={onVertical} />
+        <ChipControls block={block} onTextChange={onTextChange} onRemove={onRemove} onColumns={onColumns} onVertical={onVertical} onPortV={onPortV} />
         {block.source === "anno" && (
           <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemove(block.index)} className="text-[10px] text-faint hover:text-red-400" title="Delete">×</button>
         )}
@@ -507,30 +547,18 @@ function TrayChip({
   );
 }
 
-function GridChip({
-  block,
-  onTextChange,
-  onRemove,
-  onColumns,
-  onVertical,
-}: {
-  block: Block;
-  onTextChange: (idx: number, text: string) => void;
-  onRemove: (idx: number) => void;
-  onColumns: (source: string, idx: number, columns: number) => void;
-  onVertical: (idx: number, vertical: boolean) => void;
-}) {
+function GridChip({ block, onTextChange, onRemove, onColumns, onVertical, onPortV }: ChipProps) {
   return (
     <div
       draggable
       onDragStart={(e) => { e.dataTransfer.setData("text/plain", block.id); e.dataTransfer.effectAllowed = "move"; }}
-      className="group/chip relative flex h-full w-full cursor-grab items-center justify-center overflow-hidden rounded-[3px] border border-accent/50 bg-bg/40 active:cursor-grabbing"
+      className="group/chip relative flex h-full w-full cursor-grab items-center justify-center overflow-hidden rounded-xs border border-accent/50 bg-bg/40 active:cursor-grabbing"
       title="Drag to reposition"
     >
       <div className="pointer-events-none flex h-full w-full items-center justify-center overflow-hidden">{block.node}</div>
       {/* hover toolbar */}
-      <div className="absolute left-0 top-0 hidden items-center gap-1 rounded-br bg-panel/90 px-1 group-hover/chip:flex">
-        <ChipControls block={block} onTextChange={onTextChange} onRemove={onRemove} onColumns={onColumns} onVertical={onVertical} />
+      <div className="absolute left-0 top-0 hidden items-center gap-1 rounded-br bg-panel/90 px-1 py-0.5 group-hover/chip:flex">
+        <ChipControls block={block} onTextChange={onTextChange} onRemove={onRemove} onColumns={onColumns} onVertical={onVertical} onPortV={onPortV} />
         {block.source === "anno" && (
           <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemove(block.index)} className="text-[10px] text-faint hover:text-red-400" title="Delete">×</button>
         )}
@@ -588,13 +616,13 @@ function PreviewRack({
           }}
         >
           <div
-            className="absolute inset-x-0 bottom-0 flex overflow-hidden rounded border border-border/80 bg-gradient-to-b from-[#272e37] to-[#1d232b]"
+            className="absolute inset-x-0 bottom-0 flex overflow-hidden rounded border border-border/80 bg-linear-to-b from-[#272e37] to-[#1d232b]"
             style={{ height: rackUnits * PREVIEW_U }}
           >
             {/* Left category stripe */}
             <span aria-hidden className="absolute inset-y-0 left-0 z-10 w-0.75" style={{ background: stripe }} />
-            {/* Nameplate column — mirrors DraggableAssetCell */}
-            <div className={`flex shrink-0 flex-col justify-center border-r border-border/80 bg-bg/30 pl-2.5 pr-2 ${isOneU ? "" : "py-1"} w-[90px] min-w-[50px]`}>
+            {/* Nameplate column — exact match to DraggableAssetCell w-31 for rack items */}
+            <div className={`flex w-31 min-w-12.5 shrink-0 flex-col justify-center border-r border-border/80 bg-bg/30 pl-2.5 pr-2 ${isOneU ? "" : "py-1"}`}>
               <span className="flex items-center gap-1.5">
                 <span aria-hidden className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-status-green shadow-[0_0_5px_var(--color-status-green)]" />
                 <span className="truncate text-[11px] font-black leading-tight">{asset.codename}</span>
