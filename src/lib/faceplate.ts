@@ -18,19 +18,21 @@ export const ELEMENT_INCHES = {
   port: { w: 0.62, h: 0.55 }, // RJ45 jack
   portSfp: { w: 0.5, h: 0.45 }, // SFP cage
   outlet: { w: 0.95, h: 0.95 }, // C13 / NEMA
-  psu: { w: 3.0, h: 1.5 }, // PSU module
+  psu: { w: 2.0, h: 1.1 }, // hot-swap PSU module (typical 1U server)
 } as const;
 
 export const ELEMENT_GAP_INCHES = 0.07;
 
 export type FaceWidthSource = number; // usable face width in inches
 
-export function bayElementInches(driveSize: string) {
-  return driveSize === "LFF"
-    ? ELEMENT_INCHES.bayLFF
-    : driveSize === "M2"
-      ? ELEMENT_INCHES.bayM2
-      : ELEMENT_INCHES.baySFF;
+export function bayElementInches(driveSize: string, vertical = false) {
+  const el =
+    driveSize === "LFF"
+      ? ELEMENT_INCHES.bayLFF
+      : driveSize === "M2"
+        ? ELEMENT_INCHES.bayM2
+        : ELEMENT_INCHES.baySFF;
+  return vertical && driveSize !== "LFF" ? { w: el.h, h: el.w } : el;
 }
 
 export function portElementInches(portType?: string | null) {
@@ -50,6 +52,7 @@ export type BlockSpec = {
   ethernet?: number;
   sfp?: number;
   annotationKind?: "TEXT" | "SPACER" | "DIVIDER";
+  vertical?: boolean; // SFF/M2 bays: portrait orientation (slot height > width)
   rackUnits: number;
 };
 
@@ -59,7 +62,7 @@ const clampCols = (n: number) => Math.max(1, Math.min(FACE_COLS, Math.round(n)))
 function elementInches(b: BlockSpec): { w: number; h: number } {
   switch (b.kind) {
     case "bay":
-      return bayElementInches(b.driveSize ?? "SFF");
+      return bayElementInches(b.driveSize ?? "SFF", b.vertical);
     case "port":
       return portElementInches(b.portType);
     case "outlet":

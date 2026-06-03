@@ -166,6 +166,7 @@ export function assetPresetToFormData(
     driveSize: z.driveSize,
     bayCount: z.bayCount,
     sortOrder: z.sortOrder ?? i,
+    vertical: z.vertical ?? false,
   }));
 
   const portGroups: PortGroupInput[] = (preset.portGroups ?? []).map((g, i) => ({

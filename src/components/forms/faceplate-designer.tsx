@@ -72,7 +72,15 @@ type Block = {
   node: React.ReactNode;
   annotationKind?: "TEXT" | "SPACER" | "DIVIDER";
   text?: string | null;
-  shape?: { count: number; columns: number | null; cols: number; min: number; max: number }; // bay/port/outlet only
+  shape?: {
+    count: number;
+    columns: number | null;
+    cols: number;
+    min: number;
+    max: number;
+    driveSize?: string; // bay blocks only — enables vertical toggle
+    vertical?: boolean;
+  };
   fits?: boolean;
   fitLabel?: string;
 };
@@ -142,6 +150,10 @@ export function FaceplateDesigner({
     else if (source === "outlet") onOutletGroups(outletGroups.map((g, i) => (i === idx ? { ...g, columns: c } : g)));
   }
 
+  function setVertical(idx: number, vertical: boolean) {
+    onBayZones(bayZones.map((z, i) => (i === idx ? { ...z, vertical, columns: null } : z)));
+  }
+
   function addAnnotation(kind: "TEXT" | "SPACER" | "DIVIDER") {
     onAnnotations([
       ...annotations,
@@ -156,16 +168,17 @@ export function FaceplateDesigner({
   // Build the renderable block list with footprints.
   const blocks: Block[] = [];
   asset.bayZones.forEach((z, i) => {
-    const spec: BlockSpec = { kind: "bay", count: z.bayCount, columns: z.columns, driveSize: z.driveSize, rackUnits: rackUnits || 1 };
+    const vertical = !!z.vertical && z.driveSize !== "LFF";
+    const spec: BlockSpec = { kind: "bay", count: z.bayCount, columns: z.columns, driveSize: z.driveSize, vertical, rackUnits: rackUnits || 1 };
     const cols = resolveColumns(spec, faceWidthInches);
     const b = columnBounds(spec, faceWidthInches);
     blocks.push({
       id: `bay:${i}`, source: "bay", index: i,
       face: (z.faceSide === "REAR" ? "REAR" : "FRONT") as FaceId,
       row: z.gridRow ?? null, col: z.gridCol ?? null, span: blockSpan(spec, faceWidthInches),
-      shape: { count: z.bayCount, columns: z.columns ?? null, cols, min: b.minCols, max: b.maxCols },
-      fits: b.fits, fitLabel: `${z.bayCount} ${z.driveSize} bays don't fit a ${rackUnits}U face (max ${b.capacity})`,
-      node: <DriveBayGrid zone={z} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} cols={cols} />,
+      shape: { count: z.bayCount, columns: z.columns ?? null, cols, min: b.minCols, max: b.maxCols, driveSize: z.driveSize, vertical },
+      fits: b.fits, fitLabel: `${z.bayCount} ${z.driveSize}${vertical ? " (vertical)" : ""} bays don't fit a ${rackUnits}U face (max ${b.capacity})`,
+      node: <DriveBayGrid zone={{ ...z, vertical }} heightU={rackUnits || 1} onInspect={noop} pxPerInch={PX_PER_INCH} cols={cols} />,
     });
   });
   asset.portGroups.forEach((g, i) => {
@@ -310,7 +323,7 @@ export function FaceplateDesigner({
         <div className="flex flex-wrap items-start gap-1.5">
           {unplaced.length === 0 && <span className="text-[11px] text-faint">Everything is placed.</span>}
           {unplaced.map((b) => (
-            <TrayChip key={b.id} block={b} onTextChange={updateAnnotationText} onRemove={removeAnnotation} onColumns={setColumns} />
+            <TrayChip key={b.id} block={b} onTextChange={updateAnnotationText} onRemove={removeAnnotation} onColumns={setColumns} onVertical={setVertical} />
           ))}
         </div>
       </div>
@@ -347,7 +360,7 @@ export function FaceplateDesigner({
                       height: b.span.h * ROW_H,
                     }}
                   >
-                    <GridChip block={b} onTextChange={updateAnnotationText} onRemove={removeAnnotation} onColumns={setColumns} />
+                    <GridChip block={b} onTextChange={updateAnnotationText} onRemove={removeAnnotation} onColumns={setColumns} onVertical={setVertical} />
                   </div>
                 ))}
               </div>
@@ -396,11 +409,13 @@ function ChipControls({
   onTextChange,
   onRemove,
   onColumns,
+  onVertical,
 }: {
   block: Block;
   onTextChange: (idx: number, text: string) => void;
   onRemove: (idx: number) => void;
   onColumns: (source: string, idx: number, columns: number) => void;
+  onVertical: (idx: number, vertical: boolean) => void;
 }) {
   if (block.source === "anno") {
     if (block.annotationKind === "TEXT") {
@@ -418,11 +433,22 @@ function ChipControls({
     return null;
   }
   if (block.shape) {
-    const { cols: cur, min, max } = block.shape;
+    const { cols: cur, min, max, driveSize, vertical } = block.shape;
     const canDec = cur > min;
     const canInc = cur < max;
+    const canVertical = block.source === "bay" && driveSize && driveSize !== "LFF";
     return (
       <span className="flex items-center gap-0.5 text-[8px] text-text-dim" onPointerDown={(e) => e.stopPropagation()}>
+        {canVertical && (
+          <button
+            type="button"
+            className={`px-0.5 font-bold transition-colors ${vertical ? "text-accent" : "hover:text-accent"}`}
+            onClick={() => onVertical(block.index, !vertical)}
+            title={vertical ? "Switch to horizontal bays" : "Switch to vertical bays (portrait slot orientation)"}
+          >
+            V
+          </button>
+        )}
         <button
           type="button"
           disabled={!canDec}
@@ -453,11 +479,13 @@ function TrayChip({
   onTextChange,
   onRemove,
   onColumns,
+  onVertical,
 }: {
   block: Block;
   onTextChange: (idx: number, text: string) => void;
   onRemove: (idx: number) => void;
   onColumns: (source: string, idx: number, columns: number) => void;
+  onVertical: (idx: number, vertical: boolean) => void;
 }) {
   return (
     <div
@@ -470,7 +498,7 @@ function TrayChip({
         {block.node}
       </div>
       <div className="flex items-center justify-between gap-1">
-        <ChipControls block={block} onTextChange={onTextChange} onRemove={onRemove} onColumns={onColumns} />
+        <ChipControls block={block} onTextChange={onTextChange} onRemove={onRemove} onColumns={onColumns} onVertical={onVertical} />
         {block.source === "anno" && (
           <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemove(block.index)} className="text-[10px] text-faint hover:text-red-400" title="Delete">×</button>
         )}
@@ -484,11 +512,13 @@ function GridChip({
   onTextChange,
   onRemove,
   onColumns,
+  onVertical,
 }: {
   block: Block;
   onTextChange: (idx: number, text: string) => void;
   onRemove: (idx: number) => void;
   onColumns: (source: string, idx: number, columns: number) => void;
+  onVertical: (idx: number, vertical: boolean) => void;
 }) {
   return (
     <div
@@ -500,7 +530,7 @@ function GridChip({
       <div className="pointer-events-none flex h-full w-full items-center justify-center overflow-hidden">{block.node}</div>
       {/* hover toolbar */}
       <div className="absolute left-0 top-0 hidden items-center gap-1 rounded-br bg-panel/90 px-1 group-hover/chip:flex">
-        <ChipControls block={block} onTextChange={onTextChange} onRemove={onRemove} onColumns={onColumns} />
+        <ChipControls block={block} onTextChange={onTextChange} onRemove={onRemove} onColumns={onColumns} onVertical={onVertical} />
         {block.source === "anno" && (
           <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemove(block.index)} className="text-[10px] text-faint hover:text-red-400" title="Delete">×</button>
         )}
@@ -508,6 +538,16 @@ function GridChip({
     </div>
   );
 }
+
+const PREVIEW_STRIPE: Record<string, string> = {
+  SERVER: "var(--color-cat-server)", NUC: "var(--color-cat-server)", SBC: "var(--color-cat-server)",
+  SWITCH: "var(--color-cat-switch)", PATCH_PANEL: "var(--color-cat-switch)",
+  GATEWAY: "var(--color-cat-firewall)", FIREWALL: "var(--color-cat-firewall)",
+  UPS: "var(--color-cat-ups)",
+  PDU: "var(--color-cat-pdu)", SHELF: "var(--color-cat-pdu)", DRAWER: "var(--color-cat-pdu)",
+  KVM: "var(--color-cat-kvm)",
+  ACCESS_POINT: "var(--color-accent)",
+};
 
 // Fake rack one U taller than the item, with a U scale, rendering the device
 // via the real diagram faceplate renderer so the preview matches topology.
@@ -524,6 +564,8 @@ function PreviewRack({
 }) {
   const totalU = rackUnits + 1;
   const innerWidth = Math.round(faceWidthInches * PREVIEW_PPI);
+  const isOneU = rackUnits <= 1;
+  const stripe = PREVIEW_STRIPE[asset.category] ?? "var(--color-faint)";
   return (
     <div>
       <p className="mb-0.5 text-[9px] font-bold uppercase tracking-wide text-text-dim">{face}</p>
@@ -549,7 +591,20 @@ function PreviewRack({
             className="absolute inset-x-0 bottom-0 flex overflow-hidden rounded border border-border/80 bg-gradient-to-b from-[#272e37] to-[#1d232b]"
             style={{ height: rackUnits * PREVIEW_U }}
           >
-            <div className="flex w-full items-stretch gap-0 overflow-hidden px-1 py-0.5">
+            {/* Left category stripe */}
+            <span aria-hidden className="absolute inset-y-0 left-0 z-10 w-0.75" style={{ background: stripe }} />
+            {/* Nameplate column — mirrors DraggableAssetCell */}
+            <div className={`flex shrink-0 flex-col justify-center border-r border-border/80 bg-bg/30 pl-2.5 pr-2 ${isOneU ? "" : "py-1"} w-[90px] min-w-[50px]`}>
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-status-green shadow-[0_0_5px_var(--color-status-green)]" />
+                <span className="truncate text-[11px] font-black leading-tight">{asset.codename}</span>
+              </span>
+              {!isOneU && (
+                <span className="mt-0.5 truncate text-[9px] font-normal leading-tight text-text-dim">{asset.name}</span>
+              )}
+            </div>
+            {/* Faceplate content */}
+            <div className="flex flex-1 items-stretch gap-0 overflow-hidden px-1 py-0.5">
               <AssetFaceContent asset={asset} face={face} onInspect={noop} pxPerInch={PREVIEW_PPI} />
             </div>
           </div>
@@ -626,6 +681,7 @@ function buildPreviewAsset(
       gridCol: z.gridCol ?? null,
       rows: z.rows ?? null,
       columns: z.columns ?? null,
+      vertical: z.vertical ?? false,
       drives: [],
     })),
     portGroups: s.portGroups.map((g, i) => ({

@@ -17,6 +17,7 @@ export const assetPresetBayZoneSchema = z.object({
   driveSize: z.enum(DRIVE_SIZES),
   bayCount: z.number().int().positive(),
   sortOrder: z.number().int().nonnegative().default(0),
+  vertical: z.boolean().optional().default(false),
 });
 
 export const assetPresetPortGroupSchema = z.object({

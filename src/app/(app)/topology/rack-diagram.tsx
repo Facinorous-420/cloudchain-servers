@@ -111,6 +111,7 @@ export type DiagramAsset = {
     gridCol?: number | null;
     rows?: number | null;
     columns?: number | null;
+    vertical?: boolean | null;
     drives: {
       id: string;
       name: string;

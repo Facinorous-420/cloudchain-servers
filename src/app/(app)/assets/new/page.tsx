@@ -132,6 +132,7 @@ export default async function NewAssetPage({
         driveSize: z.driveSize,
         bayCount: z.bayCount,
         sortOrder: z.sortOrder,
+        vertical: z.vertical ?? false,
       })),
       portGroups: source.portGroups.map((g) => ({
         id: g.id,

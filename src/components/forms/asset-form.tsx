@@ -1492,6 +1492,7 @@ function BayZoneEditor({
         driveSize: "SFF",
         bayCount: 1,
         sortOrder: zones.length,
+        vertical: false,
       },
     ]);
   }

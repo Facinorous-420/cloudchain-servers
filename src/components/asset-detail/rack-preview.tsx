@@ -122,13 +122,26 @@ function FacePreview({
                 </div>
               )
             ) : (
-              <div className="flex h-full w-full items-stretch gap-0 overflow-hidden px-1 py-0.5 pl-3">
-                <AssetFaceContent
-                  asset={asset}
-                  face={face}
-                  onInspect={() => {}}
-                  pxPerInch={PREVIEW_PPI}
-                />
+              <div className="flex h-full w-full items-stretch gap-0 overflow-hidden">
+                {/* Nameplate column — mirrors DraggableAssetCell */}
+                <div className={`flex shrink-0 flex-col justify-center border-r border-border/80 bg-bg/30 pl-2.5 pr-2 ${rackUnits <= 1 ? "" : "py-1"} w-22.5 min-w-10`}>
+                  <span className="flex items-center gap-1.5">
+                    <span aria-hidden className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${asset.state === "IN_USE" ? "bg-status-green shadow-[0_0_5px_var(--color-status-green)]" : "bg-faint"}`} />
+                    <span className="truncate text-[11px] font-black leading-tight">{asset.codename}</span>
+                  </span>
+                  {rackUnits > 1 && (
+                    <span className="mt-0.5 truncate text-[9px] font-normal leading-tight text-text-dim">{asset.name}</span>
+                  )}
+                </div>
+                {/* Faceplate content */}
+                <div className="flex flex-1 items-stretch gap-0 overflow-hidden px-1 py-0.5">
+                  <AssetFaceContent
+                    asset={asset}
+                    face={face}
+                    onInspect={() => {}}
+                    pxPerInch={PREVIEW_PPI}
+                  />
+                </div>
               </div>
             )}
           </div>

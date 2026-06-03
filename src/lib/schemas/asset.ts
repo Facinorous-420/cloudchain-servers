@@ -30,6 +30,7 @@ export const bayZoneSchema = z.object({
   gridCol: z.number().int().nonnegative().nullable().optional(),
   rows: z.number().int().positive().nullable().optional(),
   columns: z.number().int().positive().nullable().optional(),
+  vertical: z.boolean().optional().default(false),
 });
 export type BayZoneInput = z.infer<typeof bayZoneSchema>;
 

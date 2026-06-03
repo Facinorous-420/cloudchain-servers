@@ -135,6 +135,7 @@ export default async function EditAssetPage({
       gridCol: z.gridCol,
       rows: z.rows,
       columns: z.columns,
+      vertical: z.vertical ?? false,
     })),
     portGroups: asset.portGroups.map((g) => ({
       id: g.id,

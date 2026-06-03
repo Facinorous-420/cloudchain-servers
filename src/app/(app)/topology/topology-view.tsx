@@ -1634,7 +1634,7 @@ function Zone({
     <div className="flex min-w-0 flex-col justify-center border-l border-dashed border-border/70 px-2 py-px first:border-l-0 first:pl-0">
       {title && (
         <div
-          className={`mb-0.5 truncate text-left text-[7px] font-black uppercase tracking-[0.7px] ${
+          className={`mb-px leading-none truncate text-left text-[7px] font-black uppercase tracking-[0.7px] ${
             titleClassName ?? "text-faint"
           }`}
         >
@@ -2281,29 +2281,31 @@ export function DriveBayGrid({
       .map((d) => [d.bayNumber as number, d]),
   );
   const bays = Array.from({ length: zone.bayCount }, (_, i) => i + 1);
+  const vertical = !!zone.vertical && zone.driveSize !== "LFF";
   const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
-  const el = bayElementInches(zone.driveSize);
+  const el = bayElementInches(zone.driveSize, vertical);
   const ew = Math.max(8, Math.round(el.w * ppi));
   const eh = Math.max(6, Math.round(el.h * ppi));
   const gap = Math.max(1, Math.round(ELEMENT_GAP_INCHES * ppi));
   // Resolved columns win; then explicit shape; then fit as many rows as the
-  // device height allows (using physical element height for accuracy).
+  // device height allows (reserving ~10px for the Zone title + padding).
   const perRow =
     cols && cols > 0 ? cols
     : zone.columns && zone.columns > 0 ? zone.columns
     : zone.rows && zone.rows > 0 ? Math.ceil(zone.bayCount / zone.rows)
-    : Math.ceil(zone.bayCount / Math.max(1, Math.floor((heightU * U_PX - 22) / (eh + gap))));
+    : Math.ceil(zone.bayCount / Math.max(1, Math.floor((heightU * U_PX - 10) / (eh + gap))));
   return (
     <div className="grid" style={{ gridTemplateColumns: `repeat(${perRow}, ${ew}px)`, gap }}>
       {bays.map((n) => {
         const drive = drivesByBay.get(n);
+        const labelH = vertical ? ew : eh; // the taller dimension drives label visibility
         return (
           <button
             key={n}
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onInspect(`bay:${zone.id}:${n}`); }}
-            style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(eh - 4, 9)) }}
+            style={{ width: ew, height: eh, fontSize: Math.max(5, Math.min(labelH - 4, 9)) }}
             className={`flex cursor-pointer items-center justify-center rounded-[2px] border font-black leading-none transition-transform hover:scale-110 hover:shadow-[0_0_8px_rgba(0,168,198,0.7)] ${
               drive ? "border-[#52d062] bg-cat-server text-bg" : "border-[#3a424d] bg-[#2a313b] text-faint"
             }`}
@@ -2313,7 +2315,7 @@ export function DriveBayGrid({
                 : `Bay ${n}: empty — click to add a drive`
             }
           >
-            {eh >= 12 ? (drive ? drive.kind : "") : ""}
+            {labelH >= 12 ? (drive ? drive.kind : "") : ""}
           </button>
         );
       })}
@@ -2629,18 +2631,21 @@ function PsuGrid({
   connectedPsuOrders,
   heightU,
   onInspect,
+  pxPerInch = U_PX / U_INCHES,
 }: {
   assetId: string;
   psus: DiagramAsset["psus"];
   psuCount: number | null;
-  // sort orders (0-based) of PSUs that have an incoming POWER connection
   connectedPsuOrders: number[];
   heightU: number;
   onInspect: (target: string) => void;
+  pxPerInch?: number;
 }) {
   const prefs = useDiagramPrefs();
   if (prefs.hidePorts) return null;
-  const ph = Math.min(heightU * U_PX - 26, 18);
+  const ppi = pxPerInch * FACEPLATE_RENDER_SCALE;
+  const pw = Math.max(14, Math.round(ELEMENT_INCHES.psu.w * ppi));
+  const ph = Math.max(8, Math.round(ELEMENT_INCHES.psu.h * ppi));
   const count = psus.length > 0 ? psus.length : (psuCount ?? 0);
   if (count <= 0) return null;
   const connectedSet = new Set(connectedPsuOrders);
@@ -2658,7 +2663,7 @@ function PsuGrid({
                   e.stopPropagation();
                   onInspect(`psu:${assetId}:${i + 1}`);
                 }}
-                style={{ width: ph * 1.7, height: ph }}
+                style={{ width: pw, height: ph }}
                 className={`relative shrink-0 cursor-pointer overflow-hidden rounded-[2px] border transition-colors hover:border-accent ${
                   psu.state !== "IN_USE"
                     ? "border-border/30 bg-panel-2/40 opacity-60"
@@ -2683,7 +2688,7 @@ function PsuGrid({
                 e.stopPropagation();
                 onInspect(`psu:${assetId}:${i + 1}`);
               }}
-              style={{ width: ph * 1.7, height: ph }}
+              style={{ width: pw, height: ph }}
               className="shrink-0 cursor-pointer rounded-[2px] border border-[#3a424d] bg-[#2a313b] transition-colors hover:border-accent"
               title={`PSU ${i + 1}`}
             >

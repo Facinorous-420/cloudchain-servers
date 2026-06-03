@@ -285,10 +285,12 @@ model BayZone {
   sortOrder   Int        @default(0)
   // Faceplate designer placement (issue 5) — grid cell origin on the face;
   // null = auto-layout. rows/columns set the bay matrix shape (e.g. 3×4).
+  // vertical = true: SFF/M2 bays are mounted portrait (tall slot, drive inserts from side).
   gridRow     Int?
   gridCol     Int?
   rows        Int?
   columns     Int?
+  vertical    Boolean  @default(false)
   drives      Drive[]
 }
 
